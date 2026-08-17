@@ -14,7 +14,7 @@
 //
 // Joint signs: pca_servo_test/JOINT_CONVENTION.md
 // Gait: src/walk.cpp (same IK as hexapod_description/view_hexapod.html)
-// Web:  /  calibration   /walk  3D preview + deploy
+// Web:  /  calibration   /walk  walk preview   /spin  spin preview
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -25,6 +25,7 @@
 #include "wifi_secrets.h"
 #include "walk.h"
 #include "gait_preview_html.h"
+#include "gait_spin_html.h"
 #include "calibration_backup.h"
 
 static const int SDA_PIN = 6;  // ESP32-S3 I2C data
@@ -362,7 +363,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     Thigh/shin: tap <b>MIN</b> on the slider side toward model MIN after saving MAX.
   </div>
   <p id="info">Loading…</p>
-  <p><a href="/walk"><b>Open walking controls →</b></a></p>
+  <p><a href="/walk"><b>Walk →</b></a> · <a href="/spin"><b>Spin →</b></a></p>
   <button class="all" onclick="lockSpans()">Lock thighs/shins to shortest max→min span</button>
   <button class="all" onclick="gotoGroup('thigh','max')">All thighs → MAX</button>
   <button class="all" onclick="gotoGroup('thigh','mid')">All thighs → MID</button>
@@ -842,6 +843,8 @@ static void applyWalkPose() {
 
 static void handleWalkPage() { server.send_P(200, "text/html", WALK_HTML); }
 
+static void handleSpinPage() { server.send_P(200, "text/html", SPIN_HTML); }
+
 static void handleWalkGet() {
   WalkParams p = walkGetParams();
   String j = "{";
@@ -981,6 +984,7 @@ void setup() {
 
   server.on("/", handleRoot);
   server.on("/walk", handleWalkPage);
+  server.on("/spin", handleSpinPage);
   server.on("/api/status", handleStatus);
   server.on("/api/cal", handleCalGet);
   server.on("/api/pulse", handlePulse);
@@ -998,6 +1002,7 @@ void setup() {
   server.begin();
   Serial.println("Web server started");
   Serial.println("Walk UI: /walk");
+  Serial.println("Spin UI: /spin");
   lastWalkMs = millis();
 }
 

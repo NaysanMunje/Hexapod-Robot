@@ -35,10 +35,16 @@ All six hips sit at hexagon **vertices**. Each hip's coxa zero (`yaw0`) is the m
 Legs are **not** mirrored in the model — every leg uses the same joint axes and signs, so one IK routine serves all six. The right side's mirrored servo mounting is handled as a per-joint direction flag in the firmware calibration table.
 
 ## Gait
-`view_hexapod.html` runs a **tripod gait** (LF·RM·LR / RF·LM·RR, 50% duty) driven by real IK: foot targets are placed in the body frame, then solved for coxa yaw, femur, and knee.
+- [`view_hexapod.html`](view_hexapod.html) — **menu** (links to walk & spin)
+- [`view_walk.html`](view_walk.html) — **forward / crab walk** preview
+- [`view_spin.html`](view_spin.html) — **in-place spin** preview
+
+Both gait pages run a **tripod gait** (LF·RM·LR / RF·LM·RR, 50% duty) driven by real IK: foot targets are placed in the body frame, then solved for coxa yaw, femur, and knee.
 
 - Corner legs get a **forward/outward splay** (default **22°**) so the shins (70 mm wide at the knee, tapering to a point) stay clear of the middle pair (target ≥20 mm free air). The viewer reports live clearance at the wide knee end.
 - Body speed is derived from stride and cadence for **no-slip** feet: `v = stride × cadence / duty`.
+- **In-place spin:** set stride to 0 and yaw rate ≠ 0. Each foot sweeps tangentially (`v = ω × r` at its footprint); coxa yaw does most of the work. Keep |ω| modest (~20 °/s) to stay inside hip ±45°.
+- **Walk + yaw:** both stride and turn nonzero → the body follows an arc (radius `v/ω`).
 - Slider ranges are limited to poses that stay off the hard stops. Defaults (95 mm body height, 140 mm foot radius, 60 mm stride, 30 mm lift) keep every joint **≥17° from its limit**; the status readout names the tightest joint at all times.
 
 ## Files
@@ -48,7 +54,9 @@ Legs are **not** mirrored in the model — every leg uses the same joint axes an
 - [`_gen_hexapod_urdf.py`](_gen_hexapod_urdf.py) — regenerates `hexapod.urdf`
 - [`view_leg.html`](view_leg.html) — one leg
 - [`view_body.html`](view_body.html) — body only
-- [`view_hexapod.html`](view_hexapod.html) — **full robot + gait animation**
+- [`view_hexapod.html`](view_hexapod.html) — gait menu
+- [`view_walk.html`](view_walk.html) — full robot walk animation
+- [`view_spin.html`](view_spin.html) — full robot spin animation
 - [`hips.json`](hips.json) — hip XYZ + coxa `yaw0` at vertices
 
 ## View (ROS 2 example)

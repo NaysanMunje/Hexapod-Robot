@@ -1,14 +1,14 @@
 #pragma once
 #include <Arduino.h>
 
-static const char WALK_HTML[] PROGMEM = R"HTML(
+static const char SPIN_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Hexapod walk</title>
-  <!-- Served at /walk. Rebuild firmware header with: python gen_walk_html.py -->
+  <title>Hexapod spin</title>
+  <!-- Served at /spin. Rebuild firmware header with: python gen_walk_html.py -->
   <style>
     html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
     #ui {
@@ -42,11 +42,18 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
 </head>
 <body>
   <div id="ui">
-    <h1>Walk preview</h1>
-    <a href="/">← Calibration</a> · <a href="/spin">Spin →</a>
+    <h1>Spin preview</h1>
+    <a href="/">← Calibration</a> · <a href="/walk">← Walk</a>
     <div class="row">
       <button id="play">Pause</button>
       <button id="reset">Reset</button>
+    </div>
+    <div class="row">
+      <button id="spinCcw">Spin CCW</button>
+      <button id="spinCw">Spin CW</button>
+    </div>
+    <div class="row">
+      <button id="spinStop" class="off">Stop spin</button>
     </div>
     <div class="row">
       <button class="deploy" id="deploy">Deploy to robot</button>
@@ -54,12 +61,12 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     <div class="row">
       <button class="go" id="robotBtn">Start robot</button>
     </div>
-    <label id="chk"><input id="freezeHips" type="checkbox" checked/> Freeze hips (safer)</label>
+    <label id="chk"><input id="freezeHips" type="checkbox"/> Freeze hips (blocks spin on robot)</label>
     <label>Cadence <span class="val" id="v-freq">0.8 Hz</span>
       <input id="freq" type="range" min="0.1" max="2" value="0.8" step="0.05"/>
     </label>
-    <label>Stride <span class="val" id="v-stride">60 mm</span>
-      <input id="stride" type="range" min="10" max="110" value="60" step="1"/>
+    <label>Spin rate <span class="val" id="v-turn">20 °/s</span>
+      <input id="turn" type="range" min="-35" max="35" value="20" step="1"/>
     </label>
     <label>Step height <span class="val" id="v-lift">30 mm</span>
       <input id="lift" type="range" min="5" max="60" value="30" step="1"/>
@@ -73,12 +80,9 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     <label>Front/rear splay <span class="val" id="v-splay">22°</span>
       <input id="splay" type="range" min="8" max="35" value="22" step="0.5"/>
     </label>
-    <label>Crab angle <span class="val" id="v-crab">0°</span>
-      <input id="crab" type="range" min="-90" max="90" value="0" step="1"/>
-    </label>
     <div id="status"></div>
     <div id="robot">Robot: loading…</div>
-    <div id="hint">Forward / crab walk preview. Deploy sends params; Start runs the robot.<br/>Needs internet for Three.js CDN.<br/>Drag orbit · scroll zoom</div>
+    <div id="hint">In-place spin: stride 0, hips sweep. Leave freeze hips off for real rotation.<br/>Deploy sends params; Start runs the robot.<br/>Needs internet for Three.js CDN.<br/>Drag orbit · scroll zoom</div>
   </div>
   <script type="importmap">
     {
@@ -341,7 +345,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     });
 
     const ui = {};
-    ['freq', 'stride', 'lift', 'height', 'radius', 'splay', 'crab'].forEach((id) => {
+    ['freq', 'turn', 'lift', 'height', 'radius', 'splay'].forEach((id) => {
       ui[id] = document.getElementById(id);
     });
     const freezeEl = document.getElementById('freezeHips');
@@ -366,6 +370,18 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       pose.x = 0; pose.y = 0; pose.heading = 0;
     };
 
+    function startSpin(sign) {
+      ui.turn.value = sign * Math.abs(+ui.turn.value || 20);
+      freezeEl.checked = false;
+      markDirty();
+    }
+    document.getElementById('spinCcw').onclick = () => startSpin(1);
+    document.getElementById('spinCw').onclick = () => startSpin(-1);
+    document.getElementById('spinStop').onclick = () => {
+      ui.turn.value = 0;
+      markDirty();
+    };
+
     function markDirty() {
       dirty = true;
       deployBtn.textContent = 'Deploy to robot *';
@@ -375,35 +391,34 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     freezeEl.addEventListener('change', markDirty);
 
     function readUI() {
+      const turnDps = +ui.turn.value;
       const v = {
         freq: +ui.freq.value,
-        stride: +ui.stride.value / 1000,
+        stride: 0,
         lift: +ui.lift.value / 1000,
         height: +ui.height.value / 1000,
         radius: +ui.radius.value / 1000,
         splay: +ui.splay.value * DEG,
-        crab: +ui.crab.value * DEG,
-        turn: 0,
+        crab: 0,
+        turn: turnDps * DEG,
         freezeHips: freezeEl.checked,
       };
       document.getElementById('v-freq').textContent = v.freq.toFixed(2) + ' Hz';
-      document.getElementById('v-stride').textContent = ui.stride.value + ' mm';
+      document.getElementById('v-turn').textContent = turnDps + ' °/s';
       document.getElementById('v-lift').textContent = ui.lift.value + ' mm';
       document.getElementById('v-height').textContent = ui.height.value + ' mm';
       document.getElementById('v-radius').textContent = ui.radius.value + ' mm';
       document.getElementById('v-splay').textContent = ui.splay.value + '°';
-      document.getElementById('v-crab').textContent = ui.crab.value + '°';
       return v;
     }
 
     function applyParamsToUI(p) {
       if (p.freq != null) ui.freq.value = p.freq;
-      if (p.stride_mm != null) ui.stride.value = p.stride_mm;
       if (p.lift_mm != null) ui.lift.value = p.lift_mm;
       if (p.height_mm != null) ui.height.value = p.height_mm;
       if (p.radius_mm != null) ui.radius.value = p.radius_mm;
       if (p.splay_deg != null) ui.splay.value = p.splay_deg;
-      if (p.crab_deg != null) ui.crab.value = p.crab_deg;
+      if (p.turn_dps != null) ui.turn.value = p.turn_dps;
       if (p.freezeHips != null) freezeEl.checked = !!p.freezeHips;
       dirty = false;
       deployBtn.textContent = 'Deployed';
@@ -414,13 +429,13 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     async function deploy() {
       const q =
         'freq=' + ui.freq.value +
-        '&stride=' + ui.stride.value +
+        '&stride=0' +
         '&lift=' + ui.lift.value +
         '&height=' + ui.height.value +
         '&radius=' + ui.radius.value +
         '&splay=' + ui.splay.value +
-        '&crab=' + ui.crab.value +
-        '&turn=0' +
+        '&crab=0' +
+        '&turn=' + ui.turn.value +
         '&freezeHips=' + (freezeEl.checked ? '1' : '0');
       const t = await (await fetch('/api/walk/params?' + q)).text();
       dirty = false;
@@ -542,8 +557,13 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       const gapMm = clearWorst.gap * 1000;
       const jCls = marginDeg < 0 ? 'bad' : marginDeg < 8 ? 'warn' : '';
       const cCls = gapMm < 0 ? 'bad' : gapMm < SHIN_CLEAR_MIN * 1000 ? 'warn' : '';
+      const yawDps = v.turn / DEG;
+      const dir = yawDps > 0 ? 'CCW' : yawDps < 0 ? 'CW' : '—';
+      const motion = Math.abs(yawDps) < 0.5
+        ? 'stopped'
+        : `spin ${Math.abs(yawDps).toFixed(0)} °/s ${dir}`;
       statusEl.innerHTML =
-        `Preview · ${(speed * 1000).toFixed(0)} mm/s · ${(1 / v.freq).toFixed(2)} s/cycle` +
+        `Preview · ${motion} · ${(1 / v.freq).toFixed(2)} s/cycle` +
         (v.freezeHips ? ' · hips frozen' : '') + `<br/>` +
         `Shin clearance: <span class="${cCls}">${gapMm.toFixed(1)} mm @ ${clearWorst.pair}</span><br/>` +
         `Tightest: <span class="${jCls}">${worst.name} ${worst.joint} ${marginDeg.toFixed(1)}°</span>` +

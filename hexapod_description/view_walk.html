@@ -1,60 +1,43 @@
-#pragma once
-#include <Arduino.h>
-
-static const char WALK_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Hexapod walk</title>
-  <!-- Served at /walk. Rebuild firmware header with: python gen_walk_html.py -->
   <style>
-    html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
+    html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; }
     #ui {
-      position: absolute; left: 10px; top: 10px; z-index: 2;
-      background: rgba(0,0,0,0.78); padding: 12px 14px; border-radius: 8px; width: min(280px, calc(100vw - 28px));
-      max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box;
+      position: absolute; left: 12px; top: 12px; z-index: 2;
+      background: rgba(0,0,0,0.72); padding: 12px 14px; border-radius: 8px; width: 250px;
+      max-height: calc(100vh - 40px); overflow-y: auto;
     }
-    #ui h1 { font-size: 14px; margin: 0 0 6px; }
-    #ui a { color: #8cb4ff; font-size: 12px; }
+    #ui h1 { font-size: 14px; margin: 0 0 8px; }
+    #ui .nav { font-size: 12px; margin: 0 0 8px; }
+    #ui .nav a { color: #8cb4ff; text-decoration: none; }
+    #ui .nav a:hover { text-decoration: underline; }
     #ui label { display: block; font-size: 12px; margin-top: 8px; }
     #ui input[type=range] { width: 100%; }
     #ui .val { float: right; opacity: 0.85; }
-    #ui .row { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+    #ui .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 12px; }
     #ui button {
       background: #2f6fd0; color: #fff; border: 0; border-radius: 5px;
-      padding: 7px 10px; font-size: 12px; cursor: pointer; flex: 1; min-width: 70px;
+      padding: 6px 10px; font-size: 12px; cursor: pointer;
     }
     #ui button.off { background: #444; }
-    #ui button.go { background: #1a7f37; }
-    #ui button.stop { background: #cf222e; }
-    #ui button.deploy { background: #b86e00; }
-    #ui button:disabled { opacity: 0.45; cursor: default; }
-    #status { font-size: 11px; margin-top: 10px; line-height: 1.45; opacity: 0.9; }
+    #status { font-size: 11px; margin-top: 10px; line-height: 1.5; opacity: 0.85; }
     #status .warn { color: #ff9c5b; }
     #status .bad { color: #ff6161; }
-    #robot { font-size: 11px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333; opacity: 0.9; }
-    #hint { font-size: 11px; opacity: 0.55; margin-top: 8px; line-height: 1.35; }
-    #chk { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 10px; }
-    #chk input { width: auto; }
+    #hint { font-size: 11px; opacity: 0.6; margin-top: 8px; line-height: 1.35; }
   </style>
 </head>
 <body>
   <div id="ui">
-    <h1>Walk preview</h1>
-    <a href="/">← Calibration</a> · <a href="/spin">Spin →</a>
+    <h1>Hexapod walk</h1>
+    <p class="nav"><a href="view_spin.html">Spin →</a></p>
     <div class="row">
       <button id="play">Pause</button>
-      <button id="reset">Reset</button>
+      <button id="reset">Reset pose</button>
     </div>
-    <div class="row">
-      <button class="deploy" id="deploy">Deploy to robot</button>
-    </div>
-    <div class="row">
-      <button class="go" id="robotBtn">Start robot</button>
-    </div>
-    <label id="chk"><input id="freezeHips" type="checkbox" checked/> Freeze hips (safer)</label>
     <label>Cadence <span class="val" id="v-freq">0.8 Hz</span>
       <input id="freq" type="range" min="0.1" max="2" value="0.8" step="0.05"/>
     </label>
@@ -77,8 +60,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       <input id="crab" type="range" min="-90" max="90" value="0" step="1"/>
     </label>
     <div id="status"></div>
-    <div id="robot">Robot: loading…</div>
-    <div id="hint">Forward / crab walk preview. Deploy sends params; Start runs the robot.<br/>Needs internet for Three.js CDN.<br/>Drag orbit · scroll zoom</div>
+    <div id="hint">Forward / crab walk · Tripod LF·RM·LR / RF·LM·RR<br/>Drag orbit · scroll zoom</div>
   </div>
   <script type="importmap">
     {
@@ -93,15 +75,18 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const DEG = Math.PI / 180;
+    // Link lengths (m) and the two fixed bends in the shin polyline
     const L_COXA = 0.053, L_FEMUR = 0.07736;
     const L_S1 = 0.022358, L_S2 = 0.071518, L_S3 = 0.03114;
     const BEND1 = -12.8 * DEG, BEND2 = -20.1 * DEG;
-    const HIP_THICK = 0.010;
-    const THIGH_THICK = 0.030;
+    const HIP_THICK = 0.010;     // coxa cross-section
+    const THIGH_THICK = 0.030;   // femur cross-section
+    // Physical shin plate: 70 mm wide at the knee, tapering to a point at the foot
     const SHIN_WIDTH = 0.070;
     const SHIN_THICK = 0.008;
     const SHIN_CLEAR_MIN = 0.020;
 
+    // Knee->foot as a single effective link: length + angular offset from shin1
     const SHIN = (() => {
       let ang = 0, x = 0, y = 0;
       [[L_S1, 0], [L_S2, BEND1], [L_S3, BEND2]].forEach(([len, bend]) => {
@@ -112,18 +97,21 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       return { len: Math.hypot(x, y), phi: Math.atan2(y, x) };
     })();
 
+    // Joint ranges from the CAD hard stops (interior angle -> bend = 180 - interior)
     const LIM = {
       coxa: [-45 * DEG, 45 * DEG],
       femur: [0, 102.5 * DEG],
       knee: [0, 122.4 * DEG],
     };
 
+    // Neighbor pairs whose 70 mm shins can collide
     const SHIN_PAIRS = [
       ['LF', 'LM'], ['LM', 'LR'],
       ['RF', 'RM'], ['RM', 'RR'],
       ['LF', 'RF'], ['LR', 'RR'],
     ];
 
+    // robot mm: +X forward +Y left → three: (X, Z_up, -Y)
     function toThree(x_mm, y_mm, z_mm = 0) {
       return new THREE.Vector3(x_mm / 1000, z_mm / 1000, -y_mm / 1000);
     }
@@ -135,6 +123,8 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       [-73.282, -61.608], [-73.282, 61.608], [0, 93.430],
     ];
 
+    // yaw0: coxa default — LM/RM horizontal; corners ⊥ outward to adjacent 79.893 edge.
+    // splay: sign of the front/rear spread that keeps thick legs from colliding.
     const hips = [
       { name: 'LF', x: 0.073282, y: 0.061608, yaw0: 1.161125, splay: -1, tripod: 0 },
       { name: 'LM', x: 0.0, y: 0.093430, yaw0: Math.PI / 2, splay: 0, tripod: 1 },
@@ -149,7 +139,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.001, 20);
     camera.position.set(0.42, 0.34, 0.42);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setPixelRatio(devicePixelRatio);
     renderer.setSize(innerWidth, innerHeight);
     document.body.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -194,6 +184,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       g.translate(length / 2, 0, 0);
       return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.65 }));
     }
+    // Wedge along +X: width in Z (around-body), thickness in Y (pitch).
     function taperedBar(length, y0, y1, z0, z1, color) {
       const hy0 = y0 / 2, hy1 = y1 / 2, hz0 = z0 / 2, hz1 = z1 / 2;
       const pos = new Float32Array([
@@ -261,6 +252,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       return { root, coxaYaw, femurPivot, kneePivot, foot };
     }
 
+    // Foot target relative to the hip (body frame) -> joint angles.
     function legIK(dx, dy, dz, yaw0) {
       const coxa = wrapPi(Math.atan2(dy, dx) - yaw0);
       let r = Math.hypot(dx, dy) - L_COXA;
@@ -292,6 +284,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       return { knee, foot: { x: fx, y: fy, z: fz } };
     }
 
+    // Minimum distance between two 3D segments
     function segDist(a0, a1, b0, b1) {
       const sub = (u, v) => ({ x: u.x - v.x, y: u.y - v.y, z: u.z - v.z });
       const dot = (u, v) => u.x * v.x + u.y * v.y + u.z * v.z;
@@ -344,18 +337,11 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     ['freq', 'stride', 'lift', 'height', 'radius', 'splay', 'crab'].forEach((id) => {
       ui[id] = document.getElementById(id);
     });
-    const freezeEl = document.getElementById('freezeHips');
     const playBtn = document.getElementById('play');
     const resetBtn = document.getElementById('reset');
-    const deployBtn = document.getElementById('deploy');
-    const robotBtn = document.getElementById('robotBtn');
     const statusEl = document.getElementById('status');
-    const robotEl = document.getElementById('robot');
 
     let playing = true;
-    let dirty = true;
-    let robotOn = false;
-
     playBtn.onclick = () => {
       playing = !playing;
       playBtn.textContent = playing ? 'Pause' : 'Play';
@@ -365,14 +351,6 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       phase = 0;
       pose.x = 0; pose.y = 0; pose.heading = 0;
     };
-
-    function markDirty() {
-      dirty = true;
-      deployBtn.textContent = 'Deploy to robot *';
-      deployBtn.disabled = false;
-    }
-    Object.values(ui).forEach((el) => el.addEventListener('input', markDirty));
-    freezeEl.addEventListener('change', markDirty);
 
     function readUI() {
       const v = {
@@ -384,7 +362,6 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
         splay: +ui.splay.value * DEG,
         crab: +ui.crab.value * DEG,
         turn: 0,
-        freezeHips: freezeEl.checked,
       };
       document.getElementById('v-freq').textContent = v.freq.toFixed(2) + ' Hz';
       document.getElementById('v-stride').textContent = ui.stride.value + ' mm';
@@ -396,77 +373,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       return v;
     }
 
-    function applyParamsToUI(p) {
-      if (p.freq != null) ui.freq.value = p.freq;
-      if (p.stride_mm != null) ui.stride.value = p.stride_mm;
-      if (p.lift_mm != null) ui.lift.value = p.lift_mm;
-      if (p.height_mm != null) ui.height.value = p.height_mm;
-      if (p.radius_mm != null) ui.radius.value = p.radius_mm;
-      if (p.splay_deg != null) ui.splay.value = p.splay_deg;
-      if (p.crab_deg != null) ui.crab.value = p.crab_deg;
-      if (p.freezeHips != null) freezeEl.checked = !!p.freezeHips;
-      dirty = false;
-      deployBtn.textContent = 'Deployed';
-      deployBtn.disabled = true;
-      readUI();
-    }
-
-    async function deploy() {
-      const q =
-        'freq=' + ui.freq.value +
-        '&stride=' + ui.stride.value +
-        '&lift=' + ui.lift.value +
-        '&height=' + ui.height.value +
-        '&radius=' + ui.radius.value +
-        '&splay=' + ui.splay.value +
-        '&crab=' + ui.crab.value +
-        '&turn=0' +
-        '&freezeHips=' + (freezeEl.checked ? '1' : '0');
-      const t = await (await fetch('/api/walk/params?' + q)).text();
-      dirty = false;
-      deployBtn.textContent = 'Deployed';
-      deployBtn.disabled = true;
-      robotEl.textContent = 'Robot params: ' + t;
-    }
-
-    async function toggleRobot() {
-      if (dirty) await deploy();
-      const t = await (await fetch('/api/walk/toggle')).text();
-      robotOn = t.indexOf('WALKING') >= 0;
-      robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
-      robotBtn.className = robotOn ? 'stop' : 'go';
-      robotEl.textContent = 'Robot: ' + t;
-    }
-
-    deployBtn.onclick = () => deploy().catch((e) => { robotEl.textContent = String(e); });
-    robotBtn.onclick = () => toggleRobot().catch((e) => { robotEl.textContent = String(e); });
-
-    async function loadFromRobot() {
-      try {
-        const p = await (await fetch('/api/walk/get')).json();
-        applyParamsToUI(p);
-        robotOn = !!p.enabled;
-        robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
-        robotBtn.className = robotOn ? 'stop' : 'go';
-        robotEl.textContent = 'Robot: ' + (robotOn ? 'WALKING' : 'STOPPED') +
-          (p.freezeHips ? ' · hips frozen' : '');
-      } catch (e) {
-        robotEl.textContent = 'Could not load robot params';
-        markDirty();
-      }
-    }
-
-    async function pollRobot() {
-      try {
-        const t = await (await fetch('/api/walk/status')).text();
-        robotOn = t.indexOf('WALKING') >= 0;
-        robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
-        robotBtn.className = robotOn ? 'stop' : 'go';
-        if (!dirty) robotEl.textContent = 'Robot: ' + t;
-      } catch (e) {}
-    }
-
-    const DUTY = 0.5;
+    const DUTY = 0.5; // tripod: half the cycle on the ground
     let phase = 0;
     const pose = { x: 0, y: 0, heading: 0 };
     const camFollow = new THREE.Vector3();
@@ -474,6 +381,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     function update(dt) {
       const v = readUI();
       const tStance = DUTY / v.freq;
+      // No-slip: body advances by one stride during each stance phase
       const speed = v.stride / tStance;
       const vx = speed * Math.cos(v.crab);
       const vy = speed * Math.sin(v.crab);
@@ -496,8 +404,10 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       for (const leg of legs) {
         const h = leg.hip;
         const yawStance = h.yaw0 + h.splay * v.splay;
+        // Neutral (mid-stance) footprint in the body frame
         const nx = h.x + v.radius * Math.cos(yawStance);
         const ny = h.y + v.radius * Math.sin(yawStance);
+        // Stride vector this leg must sweep = body motion at that footprint
         const sx = (vx - v.turn * ny) * tStance;
         const sy = (vy + v.turn * nx) * tStance;
 
@@ -517,11 +427,10 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
 
         const j = legIK(fx - h.x, fy - h.y, fz, h.yaw0);
         if (!j.reachable) unreachable++;
-        const coxaShow = v.freezeHips ? 0 : j.coxa;
-        leg.coxaYaw.rotation.y = coxaShow;
+        leg.coxaYaw.rotation.y = j.coxa;
         leg.femurPivot.rotation.z = j.femur;
         leg.kneePivot.rotation.z = -j.knee;
-        shinSeg[h.name] = kneeFootBody(h, coxaShow, j.femur, fx, fy, fz);
+        shinSeg[h.name] = kneeFootBody(h, j.coxa, j.femur, fx, fy, fz);
 
         for (const [name, val, [lo, hi]] of [
           ['coxa', j.coxa, LIM.coxa], ['femur', j.femur, LIM.femur], ['knee', j.knee, LIM.knee],
@@ -531,6 +440,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      // Free air between 70 mm shin plates = centerline distance − shin width
       let clearWorst = { gap: Infinity, pair: '' };
       for (const [a, b] of SHIN_PAIRS) {
         const A = shinSeg[a], B = shinSeg[b];
@@ -543,11 +453,12 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       const jCls = marginDeg < 0 ? 'bad' : marginDeg < 8 ? 'warn' : '';
       const cCls = gapMm < 0 ? 'bad' : gapMm < SHIN_CLEAR_MIN * 1000 ? 'warn' : '';
       statusEl.innerHTML =
-        `Preview · ${(speed * 1000).toFixed(0)} mm/s · ${(1 / v.freq).toFixed(2)} s/cycle` +
-        (v.freezeHips ? ' · hips frozen' : '') + `<br/>` +
-        `Shin clearance: <span class="${cCls}">${gapMm.toFixed(1)} mm @ ${clearWorst.pair}</span><br/>` +
-        `Tightest: <span class="${jCls}">${worst.name} ${worst.joint} ${marginDeg.toFixed(1)}°</span>` +
-        (unreachable ? `<br/><span class="bad">${unreachable} foot out of reach</span>` : '');
+        `Walk <b>${(speed * 1000).toFixed(0)} mm/s</b> · cycle ${(1 / v.freq).toFixed(2)} s<br/>` +
+        `Shin clearance (70 mm wide): <span class="${cCls}">${gapMm.toFixed(1)} mm free @ ${clearWorst.pair}</span>` +
+        ` <span style="opacity:.65">(want ≥${SHIN_CLEAR_MIN * 1000} mm)</span><br/>` +
+        `Tightest joint: <span class="${jCls}">${worst.name} ${worst.joint} ` +
+        `${marginDeg.toFixed(1)}° from limit</span>` +
+        (unreachable ? `<br/><span class="bad">${unreachable} foot target out of reach</span>` : '');
     }
 
     addEventListener('resize', () => {
@@ -556,25 +467,22 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       renderer.setSize(innerWidth, innerHeight);
     });
 
-    loadFromRobot();
-    setInterval(pollRobot, 1500);
-
     let last = performance.now();
     (function animate(now) {
       requestAnimationFrame(animate);
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+
       const prev = robot.position.clone();
       update(dt);
       camFollow.subVectors(robot.position, prev);
       camFollow.y = 0;
       camera.position.add(camFollow);
       controls.target.add(camFollow);
+
       controls.update();
       renderer.render(scene, camera);
     })(last);
   </script>
 </body>
 </html>
-
-)HTML";
