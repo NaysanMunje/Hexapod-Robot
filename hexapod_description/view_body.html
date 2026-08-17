@@ -20,6 +20,7 @@
     <h1>Body hexagon + hips at vertices</h1>
     Flats 123.215 · sides 79.893<br/>
     Flat-to-flat 146.564 · tip-to-tip 186.859 mm<br/>
+    Chassis 30 mm tall · hips on the bottom face<br/>
     Yellow = hip mounts (6 corners)<br/>
     +X forward (red) · +Y left (green)
   </div>
@@ -76,20 +77,14 @@
     scene.add(new THREE.GridHelper(0.4, 20, 0x444444, 0x2a2a2a));
     scene.add(new THREE.AxesHelper(0.1));
 
-    const shape = new THREE.Shape();
-    verts_mm.forEach(([x, y], i) => {
-      const v = R(x, y);
-      if (i === 0) shape.moveTo(v.x, -v.z); // shape in XY of three before we rotate? use XZ plane
-    });
-    // Build plate in three XZ (ground): use (robotX, -robotY) as (x,z)
+    const BODY_H = 0.030;
     const shape2 = new THREE.Shape();
     verts_mm.forEach(([x, y], i) => {
       if (i === 0) shape2.moveTo(x / 1000, -y / 1000);
       else shape2.lineTo(x / 1000, -y / 1000);
     });
     shape2.closePath();
-    const geom = new THREE.ShapeGeometry(shape2);
-    // ShapeGeometry is in XY; rotate to XZ ground
+    const geom = new THREE.ExtrudeGeometry(shape2, { depth: BODY_H, bevelEnabled: false });
     geom.rotateX(-Math.PI / 2);
     const plate = new THREE.Mesh(
       geom,
@@ -103,6 +98,12 @@
     edgePts.push(edgePts[0].clone());
     scene.add(new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(edgePts),
+      new THREE.LineBasicMaterial({ color: 0x9ec1ff })
+    ));
+    const edgeTop = verts_mm.map(([x, y]) => R(x, y, BODY_H * 1000));
+    edgeTop.push(edgeTop[0].clone());
+    scene.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(edgeTop),
       new THREE.LineBasicMaterial({ color: 0x9ec1ff })
     ));
 
@@ -122,7 +123,7 @@
       const tex = new THREE.CanvasTexture(c);
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
       spr.scale.set(0.04, 0.02, 1);
-      spr.position.copy(R(x, y, 15));
+      spr.position.copy(R(x, y, BODY_H * 1000 + 4));
       scene.add(spr);
     }
 

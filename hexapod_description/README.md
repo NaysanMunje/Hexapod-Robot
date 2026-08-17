@@ -2,13 +2,13 @@
 
 ## One-leg dimensions (from your CAD)
 
-| Segment | Length |
-|---------|--------|
-| Hip / coxa | **53.00 mm** |
-| Thigh / femur | **77.36 mm** |
-| Shin part 1 | **22.358 mm** |
-| Shin part 2 | **71.518 mm** (interior angle with part1 = **167.2°**) |
-| Shin part 3 | **31.14 mm** (interior angle with part2 = **159.9°**) |
+| Segment | Length | Cross-section |
+|---------|--------|----------------|
+| Hip / coxa | **53.00 mm** | **10 mm** square |
+| Thigh / femur | **77.36 mm** | **30 mm** square |
+| Shin part 1 | **22.358 mm** | plate, **70 mm** wide at the knee |
+| Shin part 2 | **71.518 mm** (interior angle with part1 = **167.2°**) | tapers toward the foot |
+| Shin part 3 | **31.14 mm** (interior angle with part2 = **159.9°**) | tapers to a **point** |
 
 ### Joint limits (CAD max pose)
 Angles are **interior angles between segments**, same convention as the 167.2° / 159.9° labels in the sketch.
@@ -37,7 +37,7 @@ Legs are **not** mirrored in the model — every leg uses the same joint axes an
 ## Gait
 `view_hexapod.html` runs a **tripod gait** (LF·RM·LR / RF·LM·RR, 50% duty) driven by real IK: foot targets are placed in the body frame, then solved for coxa yaw, femur, and knee.
 
-- Corner legs get a **forward/outward splay** (default **22°**) so the **70 mm-wide** shins stay clear of the middle pair (target ≥20 mm free air). The viewer draws flat shin plates at true width and reports live clearance.
+- Corner legs get a **forward/outward splay** (default **22°**) so the shins (70 mm wide at the knee, tapering to a point) stay clear of the middle pair (target ≥20 mm free air). The viewer reports live clearance at the wide knee end.
 - Body speed is derived from stride and cadence for **no-slip** feet: `v = stride × cadence / duty`.
 - Slider ranges are limited to poses that stay off the hard stops. Defaults (95 mm body height, 140 mm foot radius, 60 mm stride, 30 mm lift) keep every joint **≥17° from its limit**; the status readout names the tightest joint at all times.
 

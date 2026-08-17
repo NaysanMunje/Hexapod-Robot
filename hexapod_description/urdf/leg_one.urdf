@@ -47,7 +47,7 @@
   <link name="coxa_link">
     <visual>
       <origin xyz="0.0265 0 0" rpy="0 0 0"/>
-      <geometry><cylinder length="0.053" radius="0.004"/></geometry>
+      <geometry><box size="0.053 0.010 0.010"/></geometry>
       <material name="coxa"><color rgba="0.8 0.2 0.2 1"/></material>
     </visual>
   </link>
@@ -64,9 +64,8 @@
 
   <link name="femur_link">
     <visual>
-      <!-- cylinder along +X; zero pose = straight out -->
-      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.07736" radius="0.004"/></geometry>
+      <origin xyz="0.03868 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.07736 0.030 0.030"/></geometry>
       <material name="femur"><color rgba="0.2 0.6 0.9 1"/></material>
     </visual>
   </link>
@@ -83,8 +82,8 @@
 
   <link name="shin1_link">
     <visual>
-      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.022358" radius="0.0035"/></geometry>
+      <origin xyz="0.011179 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.022358 0.008 0.064"/></geometry>
       <material name="shin"><color rgba="0.2 0.8 0.4 1"/></material>
     </visual>
   </link>
@@ -98,8 +97,8 @@
 
   <link name="shin2_link">
     <visual>
-      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.071518" radius="0.0035"/></geometry>
+      <origin xyz="0.035759 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.071518 0.006 0.037"/></geometry>
       <material name="shin2"><color rgba="0.15 0.7 0.35 1"/></material>
     </visual>
   </link>
@@ -113,8 +112,8 @@
 
   <link name="shin3_link">
     <visual>
-      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.03114" radius="0.0035"/></geometry>
+      <origin xyz="0.01557 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.03114 0.004 0.009"/></geometry>
       <material name="shin3"><color rgba="0.1 0.55 0.3 1"/></material>
     </visual>
   </link>

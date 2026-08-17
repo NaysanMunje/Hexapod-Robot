@@ -7,6 +7,7 @@
 | Other four edges | **79.893** each |
 | Top–bottom (flat-to-flat) | **146.564** |
 | Left–right tip-to-tip | **186.859** (derived) |
+| Height | **30** (hips on the bottom face) |
 
 Opposite sides parallel; left/right symmetric.
 

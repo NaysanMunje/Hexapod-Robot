@@ -17,7 +17,8 @@ parts = [
 <robot name="hexapod">
   <link name="base_link">
     <visual>
-      <geometry><box size="0.146564 0.186859 0.008"/></geometry>
+      <origin xyz="0 0 0.015" rpy="0 0 0"/>
+      <geometry><box size="0.146564 0.186859 0.030"/></geometry>
       <material name="plate"><color rgba="0.35 0.55 0.85 0.4"/></material>
     </visual>
   </link>
@@ -44,8 +45,8 @@ def leg_block(p, x, y, yaw):
   </joint>
   <link name="{p}_coxa">
     <visual>
-      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <origin xyz="0.0265 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.053 0.010 0.010"/></geometry>
       <material name="{p}_c"><color rgba="0.8 0.25 0.25 1"/></material>
     </visual>
   </link>
@@ -59,8 +60,8 @@ def leg_block(p, x, y, yaw):
   </joint>
   <link name="{p}_femur">
     <visual>
-      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <origin xyz="0.03868 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.07736 0.030 0.030"/></geometry>
       <material name="{p}_f"><color rgba="0.2 0.55 0.9 1"/></material>
     </visual>
   </link>
@@ -74,8 +75,8 @@ def leg_block(p, x, y, yaw):
   </joint>
   <link name="{p}_shin1">
     <visual>
-      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <origin xyz="0.011179 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.022358 0.008 0.064"/></geometry>
       <material name="{p}_s1"><color rgba="0.2 0.75 0.4 1"/></material>
     </visual>
   </link>
@@ -87,8 +88,8 @@ def leg_block(p, x, y, yaw):
   </joint>
   <link name="{p}_shin2">
     <visual>
-      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <origin xyz="0.035759 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.071518 0.006 0.037"/></geometry>
       <material name="{p}_s2"><color rgba="0.15 0.65 0.35 1"/></material>
     </visual>
   </link>
@@ -100,8 +101,8 @@ def leg_block(p, x, y, yaw):
   </joint>
   <link name="{p}_shin3">
     <visual>
-      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
-      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <origin xyz="0.01557 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.03114 0.004 0.009"/></geometry>
       <material name="{p}_s3"><color rgba="0.1 0.55 0.3 1"/></material>
     </visual>
   </link>

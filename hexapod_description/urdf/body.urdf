@@ -6,8 +6,8 @@
 <robot name="hexapod_body">
   <link name="base_link">
     <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><box size="0.146564 0.186859 0.008"/></geometry>
+      <origin xyz="0 0 0.015" rpy="0 0 0"/>
+      <geometry><box size="0.146564 0.186859 0.030"/></geometry>
       <material name="plate"><color rgba="0.35 0.55 0.85 0.35"/></material>
     </visual>
   </link>
