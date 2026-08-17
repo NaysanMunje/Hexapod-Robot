@@ -1,0 +1,40 @@
+{
+  "note": "UI numbers from the 32-channel calibrator (1-16 = PCA 0x40 ch0-15, 17-32 = PCA 0x41 ch0-15). Global channel index for code = ui - 1.",
+  "pca": {
+    "0": { "address": "0x40", "note": "default" },
+    "1": { "address": "0x41", "note": "A0 bridged" }
+  },
+  "legs": {
+    "FL": {
+      "hip":   { "ui": 12, "board": 0, "ch": 11 },
+      "thigh": { "ui": 8,  "board": 0, "ch": 7 },
+      "shin":  { "ui": 22, "board": 1, "ch": 5 }
+    },
+    "ML": {
+      "hip":   { "ui": 11, "board": 0, "ch": 10 },
+      "thigh": { "ui": 7,  "board": 0, "ch": 6 },
+      "shin":  { "ui": 21, "board": 1, "ch": 4 }
+    },
+    "RL": {
+      "hip":   { "ui": 10, "board": 0, "ch": 9 },
+      "thigh": { "ui": 5,  "board": 0, "ch": 4 },
+      "shin":  { "ui": 17, "board": 1, "ch": 0 }
+    },
+    "FR": {
+      "hip":   { "ui": 23, "board": 1, "ch": 6 },
+      "thigh": { "ui": 19, "board": 1, "ch": 2 },
+      "shin":  { "ui": 13, "board": 0, "ch": 12 }
+    },
+    "MR": {
+      "hip":   { "ui": 29, "board": 1, "ch": 12 },
+      "thigh": { "ui": 28, "board": 1, "ch": 11 },
+      "shin":  { "ui": 9,  "board": 0, "ch": 8 }
+    },
+    "RR": {
+      "hip":   { "ui": 26, "board": 1, "ch": 9 },
+      "thigh": { "ui": 18, "board": 1, "ch": 1 },
+      "shin":  { "ui": 1,  "board": 0, "ch": 0 }
+    }
+  },
+  "unused_ui": [2, 3, 4, 6, 14, 15, 16, 20, 24, 25, 27, 30, 31, 32]
+}

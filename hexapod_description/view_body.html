@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Hexapod body + hips</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; }
+    #ui {
+      position: absolute; left: 12px; top: 12px; z-index: 2;
+      background: rgba(0,0,0,0.65); padding: 12px 14px; border-radius: 8px; max-width: 280px;
+      font-size: 12px; line-height: 1.4;
+    }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>Body hexagon + hips at vertices</h1>
+    Flats 123.215 · sides 79.893<br/>
+    Flat-to-flat 146.564 · tip-to-tip 186.859 mm<br/>
+    Yellow = hip mounts (6 corners)<br/>
+    +X forward (red) · +Y left (green)
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // mm -> m; robot frame X forward, Y left. Three.js Y-up:
+    // three.x = robot X, three.y = robot Z, three.z = -robot Y
+    function R(x_mm, y_mm, z_mm = 0) {
+      return new THREE.Vector3(x_mm / 1000, z_mm / 1000, -y_mm / 1000);
+    }
+
+    const verts_mm = [
+      [73.282, 61.608],
+      [73.282, -61.608],
+      [0, -93.430],
+      [-73.282, -61.608],
+      [-73.282, 61.608],
+      [0, 93.430],
+    ];
+
+    const hips = {
+      LF: [73.282, 61.608],
+      LM: [0.0, 93.430],
+      LR: [-73.282, 61.608],
+      RF: [73.282, -61.608],
+      RM: [0.0, -93.430],
+      RR: [-73.282, -61.608],
+    };
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1e);
+    const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.001, 5);
+    camera.position.set(0.25, 0.35, 0.25);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const d = new THREE.DirectionalLight(0xffffff, 0.8);
+    d.position.set(0.4, 1, 0.3);
+    scene.add(d);
+    scene.add(new THREE.GridHelper(0.4, 20, 0x444444, 0x2a2a2a));
+    scene.add(new THREE.AxesHelper(0.1));
+
+    const shape = new THREE.Shape();
+    verts_mm.forEach(([x, y], i) => {
+      const v = R(x, y);
+      if (i === 0) shape.moveTo(v.x, -v.z); // shape in XY of three before we rotate? use XZ plane
+    });
+    // Build plate in three XZ (ground): use (robotX, -robotY) as (x,z)
+    const shape2 = new THREE.Shape();
+    verts_mm.forEach(([x, y], i) => {
+      if (i === 0) shape2.moveTo(x / 1000, -y / 1000);
+      else shape2.lineTo(x / 1000, -y / 1000);
+    });
+    shape2.closePath();
+    const geom = new THREE.ShapeGeometry(shape2);
+    // ShapeGeometry is in XY; rotate to XZ ground
+    geom.rotateX(-Math.PI / 2);
+    const plate = new THREE.Mesh(
+      geom,
+      new THREE.MeshStandardMaterial({
+        color: 0x4a7dc0, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
+      })
+    );
+    scene.add(plate);
+
+    const edgePts = verts_mm.map(([x, y]) => R(x, y));
+    edgePts.push(edgePts[0].clone());
+    scene.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(edgePts),
+      new THREE.LineBasicMaterial({ color: 0x9ec1ff })
+    ));
+
+    const hipMat = new THREE.MeshStandardMaterial({ color: 0xf0d020 });
+    for (const [name, [x, y]] of Object.entries(hips)) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.006, 16, 12), hipMat);
+      m.position.copy(R(x, y));
+      scene.add(m);
+      // simple label sprite via canvas
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(name, 64, 44);
+      const tex = new THREE.CanvasTexture(c);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+      spr.scale.set(0.04, 0.02, 1);
+      spr.position.copy(R(x, y, 15));
+      scene.add(spr);
+    }
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+    (function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+  </script>
+</body>
+</html>

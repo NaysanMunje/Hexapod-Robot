@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<!--
+  Hexapod body plate + 6 hip mount frames at hexagon VERTICES.
+  Units: meters. Frame: +X forward, +Y left, +Z up.
+-->
+<robot name="hexapod_body">
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.146564 0.186859 0.008"/></geometry>
+      <material name="plate"><color rgba="0.35 0.55 0.85 0.35"/></material>
+    </visual>
+  </link>
+
+  <joint name="hip_LF_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hip_LF"/>
+    <origin xyz="0.073282 0.061608 0" rpy="0 0 0"/>
+  </joint>
+  <link name="hip_LF">
+    <visual><geometry><sphere radius="0.006"/></geometry>
+      <material name="h1"><color rgba="0.95 0.8 0.2 1"/></material></visual>
+  </link>
+
+  <joint name="hip_LM_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hip_LM"/>
+    <origin xyz="0 0.093430 0" rpy="0 0 0"/>
+  </joint>
+  <link name="hip_LM">
+    <visual><geometry><sphere radius="0.006"/></geometry>
+      <material name="h2"><color rgba="0.95 0.8 0.2 1"/></material></visual>
+  </link>
+
+  <joint name="hip_LR_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hip_LR"/>
+    <origin xyz="-0.073282 0.061608 0" rpy="0 0 0"/>
+  </joint>
+  <link name="hip_LR">
+    <visual><geometry><sphere radius="0.006"/></geometry>
+      <material name="h3"><color rgba="0.95 0.8 0.2 1"/></material></visual>
+  </link>
+
+  <joint name="hip_RF_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hip_RF"/>
+    <origin xyz="0.073282 -0.061608 0" rpy="0 0 0"/>
+  </joint>
+  <link name="hip_RF">
+    <visual><geometry><sphere radius="0.006"/></geometry>
+      <material name="h4"><color rgba="0.95 0.8 0.2 1"/></material></visual>
+  </link>
+
+  <joint name="hip_RM_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hip_RM"/>
+    <origin xyz="0 -0.093430 0" rpy="0 0 0"/>
+  </joint>
+  <link name="hip_RM">
+    <visual><geometry><sphere radius="0.006"/></geometry>
+      <material name="h5"><color rgba="0.95 0.8 0.2 1"/></material></visual>
+  </link>
+
+  <joint name="hip_RR_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="hip_RR"/>
+    <origin xyz="-0.073282 -0.061608 0" rpy="0 0 0"/>
+  </joint>
+  <link name="hip_RR">
+    <visual><geometry><sphere radius="0.006"/></geometry>
+      <material name="h6"><color rgba="0.95 0.8 0.2 1"/></material></visual>
+  </link>
+</robot>

@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<!--
+  Single hexapod leg (stick model) from user CAD dimensions (mm -> m).
+
+  Actuated joints (3):
+    coxa_joint  - hip yaw
+    femur_joint - thigh pitch
+    knee_joint  - shin pitch (at start of curved shin)
+
+  Fixed joints (2): curved shin polyline bends
+    shin1->shin2 interior 167.2 deg  => turn 12.8 deg
+    shin2->shin3 interior 159.9 deg  => turn 20.1 deg
+
+  Segment lengths:
+    coxa (hip)  = 53.00 mm
+    femur       = 77.36 mm
+    shin1       = 22.358 mm
+    shin2       = 71.518 mm
+    shin3       = 31.14 mm
+
+  For planar IK, effective straight knee->foot length ~= 122.70 mm
+
+  Joint limits (CAD max pose, interior angles between segments):
+    femur: interior angle with coxa  77.5 .. 180 deg
+           -> joint value -1.789 rad (folded) .. 0 rad (straight)
+    knee:  interior angle with femur 57.6 .. 180 deg
+           -> joint value  2.136 rad (folded) .. 0 rad (straight)
+-->
+<robot name="hexapod_leg">
+
+  <link name="base_link">
+    <visual>
+      <geometry><box size="0.04 0.02 0.01"/></geometry>
+      <material name="body"><color rgba="0.3 0.3 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ===== COXA / HIP (53 mm along +X when zero) ===== -->
+  <joint name="coxa_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="coxa_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.5708" upper="1.5708" effort="10" velocity="3"/>
+  </joint>
+
+  <link name="coxa_link">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 0 0"/>
+      <geometry><cylinder length="0.053" radius="0.004"/></geometry>
+      <material name="coxa"><color rgba="0.8 0.2 0.2 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ===== FEMUR / THIGH (77.36 mm) ===== -->
+  <!-- interior angle with coxa: 77.5 deg (hard stop) .. 180 deg (straight) -->
+  <joint name="femur_joint" type="revolute">
+    <parent link="coxa_link"/>
+    <child link="femur_link"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+
+  <link name="femur_link">
+    <visual>
+      <!-- cylinder along +X; zero pose = straight out -->
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.004"/></geometry>
+      <material name="femur"><color rgba="0.2 0.6 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ===== KNEE + SHIN1 (22.358 mm) ===== -->
+  <!-- interior angle with femur: 57.6 deg (hard stop) .. 180 deg (straight) -->
+  <joint name="knee_joint" type="revolute">
+    <parent link="femur_link"/>
+    <child link="shin1_link"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+
+  <link name="shin1_link">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.0035"/></geometry>
+      <material name="shin"><color rgba="0.2 0.8 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <!-- Fixed bend: interior 167.2 deg => turn 12.8 deg toward the foot side -->
+  <joint name="shin1_shin2_fixed" type="fixed">
+    <parent link="shin1_link"/>
+    <child link="shin2_link"/>
+    <origin xyz="0.022358 0 0" rpy="0 0.2234 0"/>
+  </joint>
+
+  <link name="shin2_link">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.0035"/></geometry>
+      <material name="shin2"><color rgba="0.15 0.7 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <!-- Fixed bend: interior 159.9 deg => turn 20.1 deg toward the foot side -->
+  <joint name="shin2_shin3_fixed" type="fixed">
+    <parent link="shin2_link"/>
+    <child link="shin3_link"/>
+    <origin xyz="0.071518 0 0" rpy="0 0.3508 0"/>
+  </joint>
+
+  <link name="shin3_link">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.0035"/></geometry>
+      <material name="shin3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <!-- Foot tip frame (for IK target) -->
+  <joint name="foot_fixed" type="fixed">
+    <parent link="shin3_link"/>
+    <child link="foot_link"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="foot_link">
+    <visual>
+      <geometry><sphere radius="0.006"/></geometry>
+      <material name="foot"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+
+</robot>

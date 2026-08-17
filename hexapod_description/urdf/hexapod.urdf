@@ -1,0 +1,556 @@
+<?xml version="1.0"?>
+<!-- Full hexapod stick model: body + 6 legs at vertices. meters, +X fwd +Y left +Z up -->
+<robot name="hexapod">
+  <link name="base_link">
+    <visual>
+      <geometry><box size="0.146564 0.186859 0.008"/></geometry>
+      <material name="plate"><color rgba="0.35 0.55 0.85 0.4"/></material>
+    </visual>
+  </link>
+
+  <!-- ========== LEG LF ========== -->
+  <joint name="LF_attach" type="fixed">
+    <parent link="base_link"/>
+    <child link="LF_hip"/>
+    <origin xyz="0.073282 0.061608 0" rpy="0 0 1.161125"/>
+  </joint>
+  <link name="LF_hip"/>
+
+  <joint name="LF_coxa_joint" type="revolute">
+    <parent link="LF_hip"/>
+    <child link="LF_coxa"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.785" upper="0.785" effort="10" velocity="3"/>
+  </joint>
+  <link name="LF_coxa">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <material name="LF_c"><color rgba="0.8 0.25 0.25 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LF_femur_joint" type="revolute">
+    <parent link="LF_coxa"/>
+    <child link="LF_femur"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+  <link name="LF_femur">
+    <visual>
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <material name="LF_f"><color rgba="0.2 0.55 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LF_knee_joint" type="revolute">
+    <parent link="LF_femur"/>
+    <child link="LF_shin1"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+  <link name="LF_shin1">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <material name="LF_s1"><color rgba="0.2 0.75 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LF_shin1_shin2" type="fixed">
+    <parent link="LF_shin1"/>
+    <child link="LF_shin2"/>
+    <origin xyz="0.022358 0 0" rpy="0 -0.2234 0"/>
+  </joint>
+  <link name="LF_shin2">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <material name="LF_s2"><color rgba="0.15 0.65 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LF_shin2_shin3" type="fixed">
+    <parent link="LF_shin2"/>
+    <child link="LF_shin3"/>
+    <origin xyz="0.071518 0 0" rpy="0 -0.3508 0"/>
+  </joint>
+  <link name="LF_shin3">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <material name="LF_s3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LF_foot_fixed" type="fixed">
+    <parent link="LF_shin3"/>
+    <child link="LF_foot"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="LF_foot">
+    <visual>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="LF_ft"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ========== LEG LM ========== -->
+  <joint name="LM_attach" type="fixed">
+    <parent link="base_link"/>
+    <child link="LM_hip"/>
+    <origin xyz="0.000000 0.093430 0" rpy="0 0 1.570796"/>
+  </joint>
+  <link name="LM_hip"/>
+
+  <joint name="LM_coxa_joint" type="revolute">
+    <parent link="LM_hip"/>
+    <child link="LM_coxa"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.785" upper="0.785" effort="10" velocity="3"/>
+  </joint>
+  <link name="LM_coxa">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <material name="LM_c"><color rgba="0.8 0.25 0.25 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LM_femur_joint" type="revolute">
+    <parent link="LM_coxa"/>
+    <child link="LM_femur"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+  <link name="LM_femur">
+    <visual>
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <material name="LM_f"><color rgba="0.2 0.55 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LM_knee_joint" type="revolute">
+    <parent link="LM_femur"/>
+    <child link="LM_shin1"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+  <link name="LM_shin1">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <material name="LM_s1"><color rgba="0.2 0.75 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LM_shin1_shin2" type="fixed">
+    <parent link="LM_shin1"/>
+    <child link="LM_shin2"/>
+    <origin xyz="0.022358 0 0" rpy="0 -0.2234 0"/>
+  </joint>
+  <link name="LM_shin2">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <material name="LM_s2"><color rgba="0.15 0.65 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LM_shin2_shin3" type="fixed">
+    <parent link="LM_shin2"/>
+    <child link="LM_shin3"/>
+    <origin xyz="0.071518 0 0" rpy="0 -0.3508 0"/>
+  </joint>
+  <link name="LM_shin3">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <material name="LM_s3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LM_foot_fixed" type="fixed">
+    <parent link="LM_shin3"/>
+    <child link="LM_foot"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="LM_foot">
+    <visual>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="LM_ft"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ========== LEG LR ========== -->
+  <joint name="LR_attach" type="fixed">
+    <parent link="base_link"/>
+    <child link="LR_hip"/>
+    <origin xyz="-0.073282 0.061608 0" rpy="0 0 1.980468"/>
+  </joint>
+  <link name="LR_hip"/>
+
+  <joint name="LR_coxa_joint" type="revolute">
+    <parent link="LR_hip"/>
+    <child link="LR_coxa"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.785" upper="0.785" effort="10" velocity="3"/>
+  </joint>
+  <link name="LR_coxa">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <material name="LR_c"><color rgba="0.8 0.25 0.25 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LR_femur_joint" type="revolute">
+    <parent link="LR_coxa"/>
+    <child link="LR_femur"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+  <link name="LR_femur">
+    <visual>
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <material name="LR_f"><color rgba="0.2 0.55 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LR_knee_joint" type="revolute">
+    <parent link="LR_femur"/>
+    <child link="LR_shin1"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+  <link name="LR_shin1">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <material name="LR_s1"><color rgba="0.2 0.75 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LR_shin1_shin2" type="fixed">
+    <parent link="LR_shin1"/>
+    <child link="LR_shin2"/>
+    <origin xyz="0.022358 0 0" rpy="0 -0.2234 0"/>
+  </joint>
+  <link name="LR_shin2">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <material name="LR_s2"><color rgba="0.15 0.65 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LR_shin2_shin3" type="fixed">
+    <parent link="LR_shin2"/>
+    <child link="LR_shin3"/>
+    <origin xyz="0.071518 0 0" rpy="0 -0.3508 0"/>
+  </joint>
+  <link name="LR_shin3">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <material name="LR_s3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="LR_foot_fixed" type="fixed">
+    <parent link="LR_shin3"/>
+    <child link="LR_foot"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="LR_foot">
+    <visual>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="LR_ft"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ========== LEG RF ========== -->
+  <joint name="RF_attach" type="fixed">
+    <parent link="base_link"/>
+    <child link="RF_hip"/>
+    <origin xyz="0.073282 -0.061608 0" rpy="0 0 -1.161125"/>
+  </joint>
+  <link name="RF_hip"/>
+
+  <joint name="RF_coxa_joint" type="revolute">
+    <parent link="RF_hip"/>
+    <child link="RF_coxa"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.785" upper="0.785" effort="10" velocity="3"/>
+  </joint>
+  <link name="RF_coxa">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <material name="RF_c"><color rgba="0.8 0.25 0.25 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RF_femur_joint" type="revolute">
+    <parent link="RF_coxa"/>
+    <child link="RF_femur"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+  <link name="RF_femur">
+    <visual>
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <material name="RF_f"><color rgba="0.2 0.55 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RF_knee_joint" type="revolute">
+    <parent link="RF_femur"/>
+    <child link="RF_shin1"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+  <link name="RF_shin1">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <material name="RF_s1"><color rgba="0.2 0.75 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RF_shin1_shin2" type="fixed">
+    <parent link="RF_shin1"/>
+    <child link="RF_shin2"/>
+    <origin xyz="0.022358 0 0" rpy="0 -0.2234 0"/>
+  </joint>
+  <link name="RF_shin2">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <material name="RF_s2"><color rgba="0.15 0.65 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RF_shin2_shin3" type="fixed">
+    <parent link="RF_shin2"/>
+    <child link="RF_shin3"/>
+    <origin xyz="0.071518 0 0" rpy="0 -0.3508 0"/>
+  </joint>
+  <link name="RF_shin3">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <material name="RF_s3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RF_foot_fixed" type="fixed">
+    <parent link="RF_shin3"/>
+    <child link="RF_foot"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="RF_foot">
+    <visual>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="RF_ft"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ========== LEG RM ========== -->
+  <joint name="RM_attach" type="fixed">
+    <parent link="base_link"/>
+    <child link="RM_hip"/>
+    <origin xyz="0.000000 -0.093430 0" rpy="0 0 -1.570796"/>
+  </joint>
+  <link name="RM_hip"/>
+
+  <joint name="RM_coxa_joint" type="revolute">
+    <parent link="RM_hip"/>
+    <child link="RM_coxa"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.785" upper="0.785" effort="10" velocity="3"/>
+  </joint>
+  <link name="RM_coxa">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <material name="RM_c"><color rgba="0.8 0.25 0.25 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RM_femur_joint" type="revolute">
+    <parent link="RM_coxa"/>
+    <child link="RM_femur"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+  <link name="RM_femur">
+    <visual>
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <material name="RM_f"><color rgba="0.2 0.55 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RM_knee_joint" type="revolute">
+    <parent link="RM_femur"/>
+    <child link="RM_shin1"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+  <link name="RM_shin1">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <material name="RM_s1"><color rgba="0.2 0.75 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RM_shin1_shin2" type="fixed">
+    <parent link="RM_shin1"/>
+    <child link="RM_shin2"/>
+    <origin xyz="0.022358 0 0" rpy="0 -0.2234 0"/>
+  </joint>
+  <link name="RM_shin2">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <material name="RM_s2"><color rgba="0.15 0.65 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RM_shin2_shin3" type="fixed">
+    <parent link="RM_shin2"/>
+    <child link="RM_shin3"/>
+    <origin xyz="0.071518 0 0" rpy="0 -0.3508 0"/>
+  </joint>
+  <link name="RM_shin3">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <material name="RM_s3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RM_foot_fixed" type="fixed">
+    <parent link="RM_shin3"/>
+    <child link="RM_foot"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="RM_foot">
+    <visual>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="RM_ft"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ========== LEG RR ========== -->
+  <joint name="RR_attach" type="fixed">
+    <parent link="base_link"/>
+    <child link="RR_hip"/>
+    <origin xyz="-0.073282 -0.061608 0" rpy="0 0 -1.980468"/>
+  </joint>
+  <link name="RR_hip"/>
+
+  <joint name="RR_coxa_joint" type="revolute">
+    <parent link="RR_hip"/>
+    <child link="RR_coxa"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.785" upper="0.785" effort="10" velocity="3"/>
+  </joint>
+  <link name="RR_coxa">
+    <visual>
+      <origin xyz="0.0265 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.053" radius="0.0035"/></geometry>
+      <material name="RR_c"><color rgba="0.8 0.25 0.25 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RR_femur_joint" type="revolute">
+    <parent link="RR_coxa"/>
+    <child link="RR_femur"/>
+    <origin xyz="0.053 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.789" upper="0" effort="10" velocity="3"/>
+  </joint>
+  <link name="RR_femur">
+    <visual>
+      <origin xyz="0.03868 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.07736" radius="0.0035"/></geometry>
+      <material name="RR_f"><color rgba="0.2 0.55 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RR_knee_joint" type="revolute">
+    <parent link="RR_femur"/>
+    <child link="RR_shin1"/>
+    <origin xyz="0.07736 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="2.136" effort="10" velocity="3"/>
+  </joint>
+  <link name="RR_shin1">
+    <visual>
+      <origin xyz="0.011179 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.022358" radius="0.003"/></geometry>
+      <material name="RR_s1"><color rgba="0.2 0.75 0.4 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RR_shin1_shin2" type="fixed">
+    <parent link="RR_shin1"/>
+    <child link="RR_shin2"/>
+    <origin xyz="0.022358 0 0" rpy="0 -0.2234 0"/>
+  </joint>
+  <link name="RR_shin2">
+    <visual>
+      <origin xyz="0.035759 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.071518" radius="0.003"/></geometry>
+      <material name="RR_s2"><color rgba="0.15 0.65 0.35 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RR_shin2_shin3" type="fixed">
+    <parent link="RR_shin2"/>
+    <child link="RR_shin3"/>
+    <origin xyz="0.071518 0 0" rpy="0 -0.3508 0"/>
+  </joint>
+  <link name="RR_shin3">
+    <visual>
+      <origin xyz="0.01557 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder length="0.03114" radius="0.003"/></geometry>
+      <material name="RR_s3"><color rgba="0.1 0.55 0.3 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="RR_foot_fixed" type="fixed">
+    <parent link="RR_shin3"/>
+    <child link="RR_foot"/>
+    <origin xyz="0.03114 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="RR_foot">
+    <visual>
+      <geometry><sphere radius="0.005"/></geometry>
+      <material name="RR_ft"><color rgba="0.95 0.85 0.2 1"/></material>
+    </visual>
+  </link>
+</robot>

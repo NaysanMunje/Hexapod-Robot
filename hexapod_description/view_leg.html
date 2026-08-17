@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Hexapod leg (stick) viewer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; }
+    #ui {
+      position: absolute; left: 12px; top: 12px; z-index: 2;
+      background: rgba(0,0,0,0.65); padding: 12px 14px; border-radius: 8px; min-width: 220px;
+    }
+    #ui h1 { font-size: 14px; margin: 0 0 8px; font-weight: 600; }
+    #ui label { display: block; font-size: 12px; margin-top: 8px; }
+    #ui input[type=range] { width: 100%; }
+    #ui .val { float: right; opacity: 0.85; }
+    #hint { font-size: 11px; opacity: 0.7; margin-top: 10px; line-height: 1.35; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>One leg — stick URDF dims</h1>
+    <label>Coxa / hip (left–right) <span class="val" id="v-coxa">0°</span>
+      <input id="coxa" type="range" min="-90" max="90" value="0" step="0.1"/>
+    </label>
+    <label>Thigh angle with hip <span class="val" id="v-femur">77.5°</span>
+      <input id="femur" type="range" min="77.5" max="180" value="77.5" step="0.1"/>
+    </label>
+    <label>Shin angle with thigh <span class="val" id="v-knee">57.6°</span>
+      <input id="knee" type="range" min="57.6" max="180" value="57.6" step="0.1"/>
+    </label>
+    <div id="hint">
+      Hip 53 · Thigh 77.36 · Shin curve mm<br/>
+      Angles are interior (between segments), like the CAD sketch.<br/>
+      Min = fully folded (your max pose) · 180° = straight<br/>
+      Drag to orbit · scroll to zoom
+    </div>
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // lengths in meters (from CAD)
+    const L_COXA = 0.053;
+    const L_FEMUR = 0.07736;
+    const L_S1 = 0.022358;
+    const L_S2 = 0.071518;
+    const L_S3 = 0.03114;
+    // Opposite bend sense to match CAD curve direction
+    const BEND1 = THREE.MathUtils.degToRad(-12.8);  // 180 - 167.2
+    const BEND2 = THREE.MathUtils.degToRad(-20.1);  // 180 - 159.9
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1e);
+
+    const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.001, 10);
+    camera.position.set(0.25, 0.18, 0.28);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.08, 0, 0.02);
+    controls.update();
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    dir.position.set(0.5, 1, 0.4);
+    scene.add(dir);
+
+    const grid = new THREE.GridHelper(0.4, 20, 0x444444, 0x2a2a2a);
+    scene.add(grid);
+    scene.add(new THREE.AxesHelper(0.08));
+
+    function stick(length, radius, color) {
+      const g = new THREE.CylinderGeometry(radius, radius, length, 12);
+      // cylinder default is Y-up; we want along +X
+      g.rotateZ(-Math.PI / 2);
+      g.translate(length / 2, 0, 0);
+      const m = new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.6 });
+      return new THREE.Mesh(g, m);
+    }
+
+    function jointBall(r, color) {
+      return new THREE.Mesh(
+        new THREE.SphereGeometry(r, 16, 12),
+        new THREE.MeshStandardMaterial({ color })
+      );
+    }
+
+    // Three.js: Y = up, XZ = ground.
+    // Hip yaw (left/right) = about Y; thigh/knee pitch (up/down) = about Z.
+    const coxaYaw = new THREE.Group();
+    scene.add(coxaYaw);
+
+    const coxaLink = stick(L_COXA, 0.004, 0xcc4444);
+    coxaYaw.add(coxaLink);
+    coxaYaw.add(jointBall(0.006, 0xffffff));
+
+    const femurPivot = new THREE.Group();
+    femurPivot.position.x = L_COXA;
+    coxaYaw.add(femurPivot);
+    femurPivot.add(jointBall(0.0055, 0x88ccff));
+
+    const femurLink = stick(L_FEMUR, 0.004, 0x3399ee);
+    femurPivot.add(femurLink);
+
+    const kneePivot = new THREE.Group();
+    kneePivot.position.x = L_FEMUR;
+    femurPivot.add(kneePivot);
+    kneePivot.add(jointBall(0.0055, 0x66ee99));
+
+    const shin1 = stick(L_S1, 0.0035, 0x33cc66);
+    kneePivot.add(shin1);
+
+    const bend1 = new THREE.Group();
+    bend1.position.x = L_S1;
+    bend1.rotation.z = BEND1;
+    kneePivot.add(bend1);
+
+    const shin2 = stick(L_S2, 0.0035, 0x2aa855);
+    bend1.add(shin2);
+
+    const bend2 = new THREE.Group();
+    bend2.position.x = L_S2;
+    bend2.rotation.z = BEND2;
+    bend1.add(bend2);
+
+    const shin3 = stick(L_S3, 0.0035, 0x1f8844);
+    bend2.add(shin3);
+
+    const foot = jointBall(0.006, 0xf0d020);
+    foot.position.x = L_S3;
+    bend2.add(foot);
+
+    const coxaEl = document.getElementById('coxa');
+    const femurEl = document.getElementById('femur');
+    const kneeEl = document.getElementById('knee');
+    const vCoxa = document.getElementById('v-coxa');
+    const vFemur = document.getElementById('v-femur');
+    const vKnee = document.getElementById('v-knee');
+
+    function sync() {
+      const c = parseFloat(coxaEl.value);
+      const fInterior = parseFloat(femurEl.value);
+      const kInterior = parseFloat(kneeEl.value);
+      vCoxa.textContent = c + '°';
+      vFemur.textContent = fInterior + '°';
+      vKnee.textContent = kInterior + '°';
+      coxaYaw.rotation.y = THREE.MathUtils.degToRad(c);
+      // interior angle -> rotation away from colinear with previous segment
+      femurPivot.rotation.z = THREE.MathUtils.degToRad(180 - fInterior);
+      kneePivot.rotation.z = THREE.MathUtils.degToRad(-(180 - kInterior));
+    }
+    [coxaEl, femurEl, kneeEl].forEach(el => el.addEventListener('input', sync));
+    sync();
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "frame": "+X forward, +Y left, +Z up",
+  "units": "mm",
+  "note": "Hips at hexagon vertices (not edge midpoints). Coxa yaw0 is the mount default: LM/RM horizontal (±Y); corner legs perpendicular outward to their adjacent 79.893 side.",
+  "body": {
+    "flat_length": 123.215,
+    "side_length": 79.893,
+    "flat_to_flat": 146.564,
+    "tip_to_tip": 186.859
+  },
+  "hips": {
+    "LF": { "x": 73.282, "y": 61.608, "z": 0.0, "yaw0_rad": 1.161125, "yaw0_deg": 66.528 },
+    "LM": { "x": 0.0, "y": 93.430, "z": 0.0, "yaw0_rad": 1.570796, "yaw0_deg": 90.0 },
+    "LR": { "x": -73.282, "y": 61.608, "z": 0.0, "yaw0_rad": 1.980468, "yaw0_deg": 113.472 },
+    "RF": { "x": 73.282, "y": -61.608, "z": 0.0, "yaw0_rad": -1.161125, "yaw0_deg": -66.528 },
+    "RM": { "x": 0.0, "y": -93.430, "z": 0.0, "yaw0_rad": -1.570796, "yaw0_deg": -90.0 },
+    "RR": { "x": -73.282, "y": -61.608, "z": 0.0, "yaw0_rad": -1.980468, "yaw0_deg": -113.472 }
+  }
+}

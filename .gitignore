@@ -1,0 +1,10 @@
+.pio/
+.vscode/
+.idea/
+*.pyc
+__pycache__/
+Thumbs.db
+.DS_Store
+
+# Local WiFi credentials — keep the .example file, not this
+**/wifi_secrets.h

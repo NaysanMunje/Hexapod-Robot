@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Hexapod tripod gait</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; }
+    #ui {
+      position: absolute; left: 12px; top: 12px; z-index: 2;
+      background: rgba(0,0,0,0.72); padding: 12px 14px; border-radius: 8px; width: 250px;
+      max-height: calc(100vh - 40px); overflow-y: auto;
+    }
+    #ui h1 { font-size: 14px; margin: 0 0 8px; }
+    #ui label { display: block; font-size: 12px; margin-top: 8px; }
+    #ui input[type=range] { width: 100%; }
+    #ui .val { float: right; opacity: 0.85; }
+    #ui .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 12px; }
+    #ui button {
+      background: #2f6fd0; color: #fff; border: 0; border-radius: 5px;
+      padding: 6px 10px; font-size: 12px; cursor: pointer;
+    }
+    #ui button.off { background: #444; }
+    #status { font-size: 11px; margin-top: 10px; line-height: 1.5; opacity: 0.85; }
+    #status .warn { color: #ff9c5b; }
+    #status .bad { color: #ff6161; }
+    #hint { font-size: 11px; opacity: 0.6; margin-top: 8px; line-height: 1.35; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h1>Hexapod tripod gait</h1>
+    <div class="row">
+      <button id="play">Pause</button>
+      <button id="reset">Reset pose</button>
+    </div>
+    <label>Cadence <span class="val" id="v-freq">0.8 Hz</span>
+      <input id="freq" type="range" min="0.1" max="2" value="0.8" step="0.05"/>
+    </label>
+    <label>Stride <span class="val" id="v-stride">60 mm</span>
+      <input id="stride" type="range" min="0" max="110" value="60" step="1"/>
+    </label>
+    <label>Step height <span class="val" id="v-lift">30 mm</span>
+      <input id="lift" type="range" min="5" max="60" value="30" step="1"/>
+    </label>
+    <label>Body height <span class="val" id="v-height">95 mm</span>
+      <input id="height" type="range" min="65" max="115" value="95" step="1"/>
+    </label>
+    <label>Foot radius <span class="val" id="v-radius">140 mm</span>
+      <input id="radius" type="range" min="110" max="178" value="140" step="1"/>
+    </label>
+    <label>Front/rear splay <span class="val" id="v-splay">22°</span>
+      <input id="splay" type="range" min="8" max="35" value="22" step="0.5"/>
+    </label>
+    <label>Crab angle <span class="val" id="v-crab">0°</span>
+      <input id="crab" type="range" min="-90" max="90" value="0" step="1"/>
+    </label>
+    <label>Turn rate <span class="val" id="v-turn">0 °/s</span>
+      <input id="turn" type="range" min="-45" max="45" value="0" step="1"/>
+    </label>
+    <div id="status"></div>
+    <div id="hint">Tripod: LF·RM·LR / RF·LM·RR<br/>Shins are 70 mm wide — splay keeps them clear<br/>Drag orbit · scroll zoom</div>
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const DEG = Math.PI / 180;
+    // Link lengths (m) and the two fixed bends in the shin polyline
+    const L_COXA = 0.053, L_FEMUR = 0.07736;
+    const L_S1 = 0.022358, L_S2 = 0.071518, L_S3 = 0.03114;
+    const BEND1 = -12.8 * DEG, BEND2 = -20.1 * DEG;
+    // Physical shin plate width (lateral) + minimum free gap between plates
+    const SHIN_WIDTH = 0.070;
+    const SHIN_CLEAR_MIN = 0.020; // aim for ≥20 mm free air between shins
+
+    // Knee->foot as a single effective link: length + angular offset from shin1
+    const SHIN = (() => {
+      let ang = 0, x = 0, y = 0;
+      [[L_S1, 0], [L_S2, BEND1], [L_S3, BEND2]].forEach(([len, bend]) => {
+        ang += bend;
+        x += len * Math.cos(ang);
+        y += len * Math.sin(ang);
+      });
+      return { len: Math.hypot(x, y), phi: Math.atan2(y, x) };
+    })();
+
+    // Joint ranges from the CAD hard stops (interior angle -> bend = 180 - interior)
+    const LIM = {
+      coxa: [-45 * DEG, 45 * DEG],
+      femur: [0, 102.5 * DEG],
+      knee: [0, 122.4 * DEG],
+    };
+
+    // Neighbor pairs whose 70 mm shins can collide
+    const SHIN_PAIRS = [
+      ['LF', 'LM'], ['LM', 'LR'],
+      ['RF', 'RM'], ['RM', 'RR'],
+      ['LF', 'RF'], ['LR', 'RR'],
+    ];
+
+    // robot mm: +X forward +Y left → three: (X, Z_up, -Y)
+    function toThree(x_mm, y_mm, z_mm = 0) {
+      return new THREE.Vector3(x_mm / 1000, z_mm / 1000, -y_mm / 1000);
+    }
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+    const bodyVertsMm = [
+      [73.282, 61.608], [73.282, -61.608], [0, -93.430],
+      [-73.282, -61.608], [-73.282, 61.608], [0, 93.430],
+    ];
+
+    // yaw0: coxa default — LM/RM horizontal; corners ⊥ outward to adjacent 79.893 edge.
+    // splay: sign of the front/rear spread that keeps thick legs from colliding.
+    const hips = [
+      { name: 'LF', x: 0.073282, y: 0.061608, yaw0: 1.161125, splay: -1, tripod: 0 },
+      { name: 'LM', x: 0.0, y: 0.093430, yaw0: Math.PI / 2, splay: 0, tripod: 1 },
+      { name: 'LR', x: -0.073282, y: 0.061608, yaw0: 1.980468, splay: 1, tripod: 0 },
+      { name: 'RF', x: 0.073282, y: -0.061608, yaw0: -1.161125, splay: 1, tripod: 1 },
+      { name: 'RM', x: 0.0, y: -0.093430, yaw0: -Math.PI / 2, splay: 0, tripod: 0 },
+      { name: 'RR', x: -0.073282, y: -0.061608, yaw0: -1.980468, splay: -1, tripod: 1 },
+    ];
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1e);
+    const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.001, 20);
+    camera.position.set(0.42, 0.34, 0.42);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const light = new THREE.DirectionalLight(0xffffff, 0.85);
+    light.position.set(0.5, 1, 0.4);
+    scene.add(light);
+    scene.add(new THREE.GridHelper(4, 80, 0x444444, 0x2a2a2a));
+
+    const robot = new THREE.Group();
+    scene.add(robot);
+
+    const shape = new THREE.Shape();
+    bodyVertsMm.forEach(([x, y], i) => {
+      if (i === 0) shape.moveTo(x / 1000, -y / 1000);
+      else shape.lineTo(x / 1000, -y / 1000);
+    });
+    shape.closePath();
+    const plateGeom = new THREE.ShapeGeometry(shape);
+    plateGeom.rotateX(-Math.PI / 2);
+    robot.add(new THREE.Mesh(
+      plateGeom,
+      new THREE.MeshStandardMaterial({ color: 0x4a7dc0, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+    ));
+    const edgePts = bodyVertsMm.map(([x, y]) => toThree(x, y));
+    edgePts.push(edgePts[0].clone());
+    robot.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(edgePts),
+      new THREE.LineBasicMaterial({ color: 0x9ec1ff })
+    ));
+    robot.add(new THREE.AxesHelper(0.1));
+
+    function stick(length, radius, color) {
+      const g = new THREE.CylinderGeometry(radius, radius, length, 10);
+      g.rotateZ(-Math.PI / 2);
+      g.translate(length / 2, 0, 0);
+      return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.65 }));
+    }
+    // Flat shin plate: 70 mm wide (local Z = around-body), thin in pitch plane
+    function shinPlate(length, color) {
+      const g = new THREE.BoxGeometry(length, 0.008, SHIN_WIDTH);
+      g.translate(length / 2, 0, 0);
+      return new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+        color, metalness: 0.05, roughness: 0.7, transparent: true, opacity: 0.85,
+      }));
+    }
+    function ball(r, color) {
+      return new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), new THREE.MeshStandardMaterial({ color }));
+    }
+
+    function makeLeg() {
+      const root = new THREE.Group();
+      const coxaYaw = new THREE.Group();
+      root.add(coxaYaw);
+      coxaYaw.add(stick(L_COXA, 0.0035, 0xcc4444));
+      coxaYaw.add(ball(0.005, 0xffffff));
+
+      const femurPivot = new THREE.Group();
+      femurPivot.position.x = L_COXA;
+      coxaYaw.add(femurPivot);
+      femurPivot.add(ball(0.0045, 0x88ccff));
+      femurPivot.add(stick(L_FEMUR, 0.0035, 0x3399ee));
+
+      const kneePivot = new THREE.Group();
+      kneePivot.position.x = L_FEMUR;
+      femurPivot.add(kneePivot);
+      kneePivot.add(ball(0.0045, 0x66ee99));
+      kneePivot.add(shinPlate(L_S1, 0x33cc66));
+
+      const bend1 = new THREE.Group();
+      bend1.position.x = L_S1;
+      bend1.rotation.z = BEND1;
+      kneePivot.add(bend1);
+      bend1.add(shinPlate(L_S2, 0x2aa855));
+
+      const bend2 = new THREE.Group();
+      bend2.position.x = L_S2;
+      bend2.rotation.z = BEND2;
+      bend1.add(bend2);
+      bend2.add(shinPlate(L_S3, 0x1f8844));
+      const foot = ball(0.005, 0xf0d020);
+      foot.position.x = L_S3;
+      bend2.add(foot);
+
+      return { root, coxaYaw, femurPivot, kneePivot, foot };
+    }
+
+    // Foot target relative to the hip (body frame) -> joint angles.
+    function legIK(dx, dy, dz, yaw0) {
+      const coxa = wrapPi(Math.atan2(dy, dx) - yaw0);
+      let r = Math.hypot(dx, dy) - L_COXA;
+      let z = dz;
+      const dMin = Math.abs(L_FEMUR - SHIN.len) + 1e-4;
+      const dMax = L_FEMUR + SHIN.len - 1e-4;
+      let d = Math.hypot(r, z);
+      let reachable = true;
+      if (d > dMax || d < dMin) {
+        reachable = false;
+        const s = clamp(d, dMin, dMax) / d;
+        r *= s; z *= s; d = Math.hypot(r, z);
+      }
+      const cosF = (L_FEMUR * L_FEMUR + d * d - SHIN.len * SHIN.len) / (2 * L_FEMUR * d);
+      const femur = Math.atan2(z, r) + Math.acos(clamp(cosF, -1, 1));
+      const psi = Math.atan2(z - L_FEMUR * Math.sin(femur), r - L_FEMUR * Math.cos(femur));
+      return { coxa, femur, knee: femur + SHIN.phi - psi, reachable };
+    }
+
+    function kneeFootBody(h, coxa, femur, fx, fy, fz) {
+      const yaw = h.yaw0 + coxa;
+      const cx = h.x + L_COXA * Math.cos(yaw);
+      const cy = h.y + L_COXA * Math.sin(yaw);
+      const knee = {
+        x: cx + L_FEMUR * Math.cos(femur) * Math.cos(yaw),
+        y: cy + L_FEMUR * Math.cos(femur) * Math.sin(yaw),
+        z: L_FEMUR * Math.sin(femur),
+      };
+      return { knee, foot: { x: fx, y: fy, z: fz } };
+    }
+
+    // Minimum distance between two 3D segments
+    function segDist(a0, a1, b0, b1) {
+      const sub = (u, v) => ({ x: u.x - v.x, y: u.y - v.y, z: u.z - v.z });
+      const dot = (u, v) => u.x * v.x + u.y * v.y + u.z * v.z;
+      const add = (u, v, s = 1) => ({ x: u.x + s * v.x, y: u.y + s * v.y, z: u.z + s * v.z });
+      const nrm = (u) => Math.sqrt(dot(u, u));
+      const d1 = sub(a1, a0), d2 = sub(b1, b0), r = sub(a0, b0);
+      const a = dot(d1, d1), e = dot(d2, d2), f = dot(d2, r);
+      if (a <= 1e-12 && e <= 1e-12) return nrm(r);
+      let s, t;
+      if (a <= 1e-12) {
+        s = 0; t = clamp(f / e, 0, 1);
+      } else {
+        const c = dot(d1, r);
+        if (e <= 1e-12) {
+          t = 0; s = clamp(-c / a, 0, 1);
+        } else {
+          const b = dot(d1, d2);
+          const denom = a * e - b * b;
+          s = Math.abs(denom) > 1e-12 ? clamp((b * f - c * e) / denom, 0, 1) : 0;
+          t = (b * s + f) / e;
+          if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); }
+          else if (t > 1) { t = 1; s = clamp((b - c) / a, 0, 1); }
+        }
+      }
+      return nrm(sub(add(a0, d1, s), add(b0, d2, t)));
+    }
+
+    const legs = hips.map((h) => {
+      const leg = makeLeg();
+      leg.hip = h;
+      leg.root.position.copy(toThree(h.x * 1000, h.y * 1000));
+      leg.root.rotation.y = h.yaw0;
+      robot.add(leg.root);
+
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(h.name, 64, 42);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+      spr.scale.set(0.05, 0.025, 1);
+      spr.position.copy(toThree(h.x * 1000, h.y * 1000, 22));
+      robot.add(spr);
+      return leg;
+    });
+
+    const ui = {};
+    ['freq', 'stride', 'lift', 'height', 'radius', 'splay', 'crab', 'turn'].forEach((id) => {
+      ui[id] = document.getElementById(id);
+    });
+    const playBtn = document.getElementById('play');
+    const resetBtn = document.getElementById('reset');
+    const statusEl = document.getElementById('status');
+
+    let playing = true;
+    playBtn.onclick = () => {
+      playing = !playing;
+      playBtn.textContent = playing ? 'Pause' : 'Play';
+      playBtn.classList.toggle('off', !playing);
+    };
+    resetBtn.onclick = () => {
+      phase = 0;
+      pose.x = 0; pose.y = 0; pose.heading = 0;
+    };
+
+    function readUI() {
+      const v = {
+        freq: +ui.freq.value,
+        stride: +ui.stride.value / 1000,
+        lift: +ui.lift.value / 1000,
+        height: +ui.height.value / 1000,
+        radius: +ui.radius.value / 1000,
+        splay: +ui.splay.value * DEG,
+        crab: +ui.crab.value * DEG,
+        turn: +ui.turn.value * DEG,
+      };
+      document.getElementById('v-freq').textContent = v.freq.toFixed(2) + ' Hz';
+      document.getElementById('v-stride').textContent = ui.stride.value + ' mm';
+      document.getElementById('v-lift').textContent = ui.lift.value + ' mm';
+      document.getElementById('v-height').textContent = ui.height.value + ' mm';
+      document.getElementById('v-radius').textContent = ui.radius.value + ' mm';
+      document.getElementById('v-splay').textContent = ui.splay.value + '°';
+      document.getElementById('v-crab').textContent = ui.crab.value + '°';
+      document.getElementById('v-turn').textContent = ui.turn.value + ' °/s';
+      return v;
+    }
+
+    const DUTY = 0.5; // tripod: half the cycle on the ground
+    let phase = 0;
+    const pose = { x: 0, y: 0, heading: 0 };
+    const camFollow = new THREE.Vector3();
+
+    function update(dt) {
+      const v = readUI();
+      const tStance = DUTY / v.freq;
+      // No-slip: body advances by one stride during each stance phase
+      const speed = v.stride / tStance;
+      const vx = speed * Math.cos(v.crab);
+      const vy = speed * Math.sin(v.crab);
+
+      if (playing) {
+        phase = (phase + dt * v.freq) % 1;
+        const ch = Math.cos(pose.heading), sh = Math.sin(pose.heading);
+        pose.x += (vx * ch - vy * sh) * dt;
+        pose.y += (vx * sh + vy * ch) * dt;
+        pose.heading += v.turn * dt;
+      }
+
+      robot.position.copy(toThree(pose.x * 1000, pose.y * 1000, v.height * 1000));
+      robot.rotation.y = pose.heading;
+
+      let worst = { margin: Infinity, name: '', joint: '' };
+      let unreachable = 0;
+      const shinSeg = {};
+
+      for (const leg of legs) {
+        const h = leg.hip;
+        const yawStance = h.yaw0 + h.splay * v.splay;
+        // Neutral (mid-stance) footprint in the body frame
+        const nx = h.x + v.radius * Math.cos(yawStance);
+        const ny = h.y + v.radius * Math.sin(yawStance);
+        // Stride vector this leg must sweep = body motion at that footprint
+        const sx = (vx - v.turn * ny) * tStance;
+        const sy = (vy + v.turn * nx) * tStance;
+
+        const p = (phase + h.tripod * 0.5) % 1;
+        let fx, fy, fz;
+        if (p < DUTY) {
+          const u = p / DUTY;
+          fx = nx + sx * (0.5 - u);
+          fy = ny + sy * (0.5 - u);
+          fz = -v.height;
+        } else {
+          const u = (p - DUTY) / (1 - DUTY);
+          fx = nx + sx * (u - 0.5);
+          fy = ny + sy * (u - 0.5);
+          fz = -v.height + v.lift * Math.sin(Math.PI * u);
+        }
+
+        const j = legIK(fx - h.x, fy - h.y, fz, h.yaw0);
+        if (!j.reachable) unreachable++;
+        leg.coxaYaw.rotation.y = j.coxa;
+        leg.femurPivot.rotation.z = j.femur;
+        leg.kneePivot.rotation.z = -j.knee;
+        shinSeg[h.name] = kneeFootBody(h, j.coxa, j.femur, fx, fy, fz);
+
+        for (const [name, val, [lo, hi]] of [
+          ['coxa', j.coxa, LIM.coxa], ['femur', j.femur, LIM.femur], ['knee', j.knee, LIM.knee],
+        ]) {
+          const m = Math.min(val - lo, hi - val);
+          if (m < worst.margin) worst = { margin: m, name: h.name, joint: name };
+        }
+      }
+
+      // Free air between 70 mm shin plates = centerline distance − shin width
+      let clearWorst = { gap: Infinity, pair: '' };
+      for (const [a, b] of SHIN_PAIRS) {
+        const A = shinSeg[a], B = shinSeg[b];
+        const gap = segDist(A.knee, A.foot, B.knee, B.foot) - SHIN_WIDTH;
+        if (gap < clearWorst.gap) clearWorst = { gap, pair: a + '–' + b };
+      }
+
+      const marginDeg = worst.margin / DEG;
+      const gapMm = clearWorst.gap * 1000;
+      const jCls = marginDeg < 0 ? 'bad' : marginDeg < 8 ? 'warn' : '';
+      const cCls = gapMm < 0 ? 'bad' : gapMm < SHIN_CLEAR_MIN * 1000 ? 'warn' : '';
+      statusEl.innerHTML =
+        `Speed <b>${(speed * 1000).toFixed(0)} mm/s</b> · cycle ${(1 / v.freq).toFixed(2)} s<br/>` +
+        `Shin clearance (70 mm wide): <span class="${cCls}">${gapMm.toFixed(1)} mm free @ ${clearWorst.pair}</span>` +
+        ` <span style="opacity:.65">(want ≥${SHIN_CLEAR_MIN * 1000} mm)</span><br/>` +
+        `Tightest joint: <span class="${jCls}">${worst.name} ${worst.joint} ` +
+        `${marginDeg.toFixed(1)}° from limit</span>` +
+        (unreachable ? `<br/><span class="bad">${unreachable} foot target out of reach</span>` : '');
+    }
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    let last = performance.now();
+    (function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+
+      const prev = robot.position.clone();
+      update(dt);
+      camFollow.subVectors(robot.position, prev);
+      camFollow.y = 0;
+      camera.position.add(camFollow);
+      controls.target.add(camFollow);
+
+      controls.update();
+      renderer.render(scene, camera);
+    })(last);
+  </script>
+</body>
+</html>
