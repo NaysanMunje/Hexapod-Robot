@@ -14,7 +14,7 @@
 //
 // Joint signs: pca_servo_test/JOINT_CONVENTION.md
 // Gait: src/walk.cpp (same IK as hexapod_description/view_hexapod.html)
-// Web:  /  calibration   /walk  walk preview   /spin  spin preview
+// Web:  /  calibration   /walk  gait preview (walk + spin tabs)
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -25,7 +25,6 @@
 #include "wifi_secrets.h"
 #include "walk.h"
 #include "gait_preview_html.h"
-#include "gait_spin_html.h"
 #include "calibration_backup.h"
 
 static const int SDA_PIN = 6;  // ESP32-S3 I2C data
@@ -131,6 +130,15 @@ static uint16_t derivedMid(uint8_t ji) {
   if (!calRef[ji]) return 0;
   if (isHip(ji)) return calRef[ji];
   return (uint16_t)((derivedMax(ji) + derivedMin(ji)) / 2);
+}
+
+// Park pose: hips DEFAULT, shins MID, thighs 75% of the way from MID toward MIN.
+static uint16_t restPulse(uint8_t ji) {
+  if (!calRef[ji]) return PULSE_DEFAULT;
+  if (!isThigh(ji)) return derivedMid(ji);
+  int32_t mid = (int32_t)derivedMid(ji);
+  int32_t mn = (int32_t)derivedMin(ji);
+  return clampPulse(mid + (int32_t)lroundf(0.75f * (float)(mn - mid)));
 }
 
 // Shortest available max→min among calibrated joints of a type; 0 if none ready.
@@ -363,7 +371,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     Thigh/shin: tap <b>MIN</b> on the slider side toward model MIN after saving MAX.
   </div>
   <p id="info">Loading…</p>
-  <p><a href="/walk"><b>Walk →</b></a> · <a href="/spin"><b>Spin →</b></a></p>
+  <p><a href="/walk"><b>Gait preview →</b></a> (walk &amp; spin tabs)</p>
   <button class="all" onclick="lockSpans()">Lock thighs/shins to shortest max→min span</button>
   <button class="all" onclick="gotoGroup('thigh','max')">All thighs → MAX</button>
   <button class="all" onclick="gotoGroup('thigh','mid')">All thighs → MID</button>
@@ -824,8 +832,15 @@ static int jointIndex(uint8_t leg, const char *joint) {
   return -1;
 }
 
+static void applyRestPose() {
+  for (uint8_t i = 0; i < JOINT_COUNT; i++) {
+    if (!calRef[i]) continue;
+    setServoPulse(uiToGlobal(JOINTS[i].ui), restPulse(i));
+  }
+}
+
 static void applyWalkPose() {
-  const bool freezeHips = walkGetParams().freezeHips;
+  const bool freezeHips = walkGetParams().freezeHips && walkStretchMode() == WALK_STRETCH_OFF;
   for (uint8_t leg = 0; leg < 6; leg++) {
     LegAngles a = walkLegAngles(leg);
     int hi = jointIndex(leg, "hip");
@@ -843,8 +858,6 @@ static void applyWalkPose() {
 
 static void handleWalkPage() { server.send_P(200, "text/html", WALK_HTML); }
 
-static void handleSpinPage() { server.send_P(200, "text/html", SPIN_HTML); }
-
 static void handleWalkGet() {
   WalkParams p = walkGetParams();
   String j = "{";
@@ -858,7 +871,16 @@ static void handleWalkGet() {
   j += ",\"crab_deg\":" + String(p.crab * RAD_TO_DEG, 1);
   j += ",\"turn_dps\":" + String(p.turn * RAD_TO_DEG, 1);
   j += ",\"freezeHips\":" + String(p.freezeHips ? "true" : "false");
+  j += ",\"gait\":\"";
+  if (p.gait == WALK_GAIT_RIPPLE) j += "ripple";
+  else if (p.gait == WALK_GAIT_WAVE) j += "wave";
+  else j += "tripod";
+  j += "\"";
   j += ",\"phase\":" + String(walkPhase(), 3);
+  uint8_t sm = walkStretchMode();
+  j += ",\"stretch_mode\":\"";
+  j += sm == WALK_STRETCH_LINEAR ? "linear" : (sm == WALK_STRETCH_ROTATE ? "rotate" : "off");
+  j += "\"";
   j += "}";
   server.send(200, "application/json", j);
 }
@@ -871,14 +893,22 @@ static void handleWalkParams() {
   if (server.hasArg("height")) p.height = constrain(server.arg("height").toFloat(), 65, 115) / 1000.f;
   if (server.hasArg("radius")) p.radius = constrain(server.arg("radius").toFloat(), 110, 178) / 1000.f;
   if (server.hasArg("splay")) p.splay = constrain(server.arg("splay").toFloat(), 0, 35) * DEG_TO_RAD;
-  if (server.hasArg("crab")) p.crab = constrain(server.arg("crab").toFloat(), -90, 90) * DEG_TO_RAD;
+  if (server.hasArg("crab")) p.crab = constrain(server.arg("crab").toFloat(), -180, 180) * DEG_TO_RAD;
   if (server.hasArg("turn")) p.turn = constrain(server.arg("turn").toFloat(), -45, 45) * DEG_TO_RAD;
   if (server.hasArg("freezeHips")) p.freezeHips = server.arg("freezeHips") != "0";
+  if (server.hasArg("gait")) {
+    String g = server.arg("gait");
+    if (g == "ripple") p.gait = WALK_GAIT_RIPPLE;
+    else if (g == "wave") p.gait = WALK_GAIT_WAVE;
+    else p.gait = WALK_GAIT_TRIPOD;
+  }
   walkSetParams(p);
+  String gaitName = p.gait == WALK_GAIT_RIPPLE ? "ripple" : (p.gait == WALK_GAIT_WAVE ? "wave" : "tripod");
   String msg = "freq=" + String(p.freq, 2) + " stride=" + String(p.stride * 1000, 0) +
                "mm lift=" + String(p.lift * 1000, 0) + "mm h=" + String(p.height * 1000, 0) +
                "mm r=" + String(p.radius * 1000, 0) + "mm splay=" + String(p.splay * RAD_TO_DEG, 1) +
                "deg crab=" + String(p.crab * RAD_TO_DEG, 0) + " turn=" + String(p.turn * RAD_TO_DEG, 0) +
+               " gait=" + gaitName +
                " hips=" + String(p.freezeHips ? "frozen" : "active");
   server.send(200, "text/plain", msg);
 }
@@ -886,24 +916,69 @@ static void handleWalkParams() {
 static void handleWalkToggle() {
   bool on = !walkEnabled();
   if (on) {
+    walkSetStretchMode(WALK_STRETCH_OFF);
     walkReset();
     walkSetEnabled(true);
     walkUpdate(0);
     applyWalkPose();
   } else {
     walkSetEnabled(false);
-    for (uint8_t i = 0; i < JOINT_COUNT; i++) {
-      if (!calRef[i]) continue;
-      setServoPulse(uiToGlobal(JOINTS[i].ui), derivedMid(i));
-    }
+    applyRestPose();
   }
-  server.send(200, "text/plain", on ? "WALKING" : "STOPPED (mid/default)");
+  server.send(200, "text/plain", on ? "WALKING" : "STOPPED (rest pose)");
+}
+
+static void handleWalkStart() {
+  walkSetStretchMode(WALK_STRETCH_OFF);
+  if (!walkEnabled()) {
+    walkReset();
+    walkSetEnabled(true);
+    walkUpdate(0);
+    applyWalkPose();
+  }
+  server.send(200, "text/plain", "WALKING");
+}
+
+static void handleWalkStop() {
+  if (walkEnabled()) {
+    walkSetEnabled(false);
+    // Leave servos at the last gait pose (used by Control tab hold-to-walk).
+  } else {
+    walkSetStretchMode(WALK_STRETCH_OFF);
+  }
+  server.send(200, "text/plain", "STOPPED (holding pose)");
+}
+
+static void handleWalkStretch() {
+  String mode = server.hasArg("mode") ? server.arg("mode") : "off";
+  if (mode == "off") {
+    walkSetStretchMode(WALK_STRETCH_OFF);
+    walkSetEnabled(false);
+    server.send(200, "text/plain", "STRETCH OFF (holding pose)");
+    return;
+  }
+  if (mode == "linear" || mode == "rotate") {
+    walkSetStretchMode(mode == "linear" ? WALK_STRETCH_LINEAR : WALK_STRETCH_ROTATE);
+    walkReset();
+    walkSetEnabled(true);
+    walkUpdate(0);
+    applyWalkPose();
+    server.send(200, "text/plain", mode == "linear" ? "STRETCH linear" : "STRETCH rotate");
+    return;
+  }
+  server.send(400, "text/plain", "use mode=off|linear|rotate");
 }
 
 static void handleWalkStatus() {
   WalkParams p = walkGetParams();
+  uint8_t sm = walkStretchMode();
   String msg = walkEnabled() ? "WALKING" : "STOPPED";
+  if (sm == WALK_STRETCH_LINEAR) msg = "STRETCH linear";
+  else if (sm == WALK_STRETCH_ROTATE) msg = "STRETCH rotate";
   if (p.freezeHips) msg += " hips=frozen";
+  if (p.gait == WALK_GAIT_RIPPLE) msg += " gait=ripple";
+  else if (p.gait == WALK_GAIT_WAVE) msg += " gait=wave";
+  else msg += " gait=tripod";
   msg += " phase=" + String(walkPhase(), 2);
   msg += " freq=" + String(p.freq, 2);
   uint8_t bad = 0;
@@ -962,7 +1037,7 @@ void setup() {
 
   for (uint8_t i = 0; i < JOINT_COUNT; i++) {
     uint8_t ch = uiToGlobal(JOINTS[i].ui);
-    uint16_t p = calRef[i] ? derivedMid(i) : PULSE_DEFAULT;
+    uint16_t p = calRef[i] ? restPulse(i) : PULSE_DEFAULT;
     setServoPulse(ch, p);
   }
 
@@ -984,7 +1059,6 @@ void setup() {
 
   server.on("/", handleRoot);
   server.on("/walk", handleWalkPage);
-  server.on("/spin", handleSpinPage);
   server.on("/api/status", handleStatus);
   server.on("/api/cal", handleCalGet);
   server.on("/api/pulse", handlePulse);
@@ -998,11 +1072,13 @@ void setup() {
   server.on("/api/walk/params", handleWalkParams);
   server.on("/api/walk/get", handleWalkGet);
   server.on("/api/walk/toggle", handleWalkToggle);
+  server.on("/api/walk/start", handleWalkStart);
+  server.on("/api/walk/stop", handleWalkStop);
+  server.on("/api/walk/stretch", handleWalkStretch);
   server.on("/api/walk/status", handleWalkStatus);
   server.begin();
   Serial.println("Web server started");
-  Serial.println("Walk UI: /walk");
-  Serial.println("Spin UI: /spin");
+  Serial.println("Gait UI: /walk");
   lastWalkMs = millis();
 }
 

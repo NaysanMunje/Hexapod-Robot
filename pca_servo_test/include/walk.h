@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-// Tripod gait + 3-DOF leg IK, matching hexapod_description/view_hexapod.html.
+// Tripod / ripple / wave gait + 3-DOF leg IK, matching hexapod_description/view_hexapod.html.
 // Units: meters and radians unless a field name says otherwise.
 //
 // Leg index (same order as JOINTS[] in main.cpp):
@@ -18,6 +18,13 @@ struct WalkParams {
   float crab = 0;          // travel heading in body frame, rad (0 = +X)
   float turn = 0;          // yaw rate, rad/s
   bool freezeHips = true;  // hold coxa at 0°; thighs/shins still walk
+  uint8_t gait = 0;        // WALK_GAIT_TRIPOD, WALK_GAIT_RIPPLE, or WALK_GAIT_WAVE
+};
+
+enum WalkGait : uint8_t {
+  WALK_GAIT_TRIPOD = 0,
+  WALK_GAIT_RIPPLE = 1,
+  WALK_GAIT_WAVE = 2,
 };
 
 struct LegAngles {
@@ -27,11 +34,19 @@ struct LegAngles {
   bool ok;      // false if the foot target was clamped to reach
 };
 
+enum WalkStretchMode : uint8_t {
+  WALK_STRETCH_OFF = 0,
+  WALK_STRETCH_LINEAR = 1,
+  WALK_STRETCH_ROTATE = 2,
+};
+
 void walkReset();
 void walkSetParams(const WalkParams &p);
 WalkParams walkGetParams();
 void walkSetEnabled(bool on);
 bool walkEnabled();
-float walkPhase();          // 0..1
+void walkSetStretchMode(uint8_t mode);
+uint8_t walkStretchMode();
+float walkPhase();          // 0..1 (stretch phase while stretching)
 void walkUpdate(float dt);  // seconds; no-op unless enabled
 LegAngles walkLegAngles(uint8_t leg);

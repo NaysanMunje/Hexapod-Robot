@@ -35,11 +35,7 @@ All six hips sit at hexagon **vertices**. Each hip's coxa zero (`yaw0`) is the m
 Legs are **not** mirrored in the model — every leg uses the same joint axes and signs, so one IK routine serves all six. The right side's mirrored servo mounting is handled as a per-joint direction flag in the firmware calibration table.
 
 ## Gait
-- [`view_hexapod.html`](view_hexapod.html) — **menu** (links to walk & spin)
-- [`view_walk.html`](view_walk.html) — **forward / crab walk** preview
-- [`view_spin.html`](view_spin.html) — **in-place spin** preview
-
-Both gait pages run a **tripod gait** (LF·RM·LR / RF·LM·RR, 50% duty) driven by real IK: foot targets are placed in the body frame, then solved for coxa yaw, femur, and knee.
+[`view_hexapod.html`](view_hexapod.html) runs a **tripod gait** (LF·RM·LR / RF·LM·RR, 50% duty) with **Walk** and **Spin** tabs on one page. Foot targets are placed in the body frame, then solved for coxa yaw, femur, and knee.
 
 - Corner legs get a **forward/outward splay** (default **22°**) so the shins (70 mm wide at the knee, tapering to a point) stay clear of the middle pair (target ≥20 mm free air). The viewer reports live clearance at the wide knee end.
 - Body speed is derived from stride and cadence for **no-slip** feet: `v = stride × cadence / duty`.
@@ -54,9 +50,7 @@ Both gait pages run a **tripod gait** (LF·RM·LR / RF·LM·RR, 50% duty) driven
 - [`_gen_hexapod_urdf.py`](_gen_hexapod_urdf.py) — regenerates `hexapod.urdf`
 - [`view_leg.html`](view_leg.html) — one leg
 - [`view_body.html`](view_body.html) — body only
-- [`view_hexapod.html`](view_hexapod.html) — gait menu
-- [`view_walk.html`](view_walk.html) — full robot walk animation
-- [`view_spin.html`](view_spin.html) — full robot spin animation
+- [`view_hexapod.html`](view_hexapod.html) — **full robot + gait animation** (walk & spin tabs)
 - [`hips.json`](hips.json) — hip XYZ + coxa `yaw0` at vertices
 
 ## View (ROS 2 example)

@@ -7,78 +7,285 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Hexapod walk</title>
+  <title>Hexapod gait preview</title>
   <!-- Served at /walk. Rebuild firmware header with: python gen_walk_html.py -->
   <style>
-    html, body { margin: 0; height: 100%; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
-    #ui {
-      position: absolute; left: 10px; top: 10px; z-index: 2;
-      background: rgba(0,0,0,0.78); padding: 12px 14px; border-radius: 8px; width: min(280px, calc(100vw - 28px));
-      max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box;
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1a1e; color: #eee; font-family: system-ui, sans-serif; }
+    #app-screen {
+      position: fixed; inset: 0; z-index: 1;
+      display: flex; flex-direction: column; background: #1a1a1e;
     }
-    #ui h1 { font-size: 14px; margin: 0 0 6px; }
-    #ui a { color: #8cb4ff; font-size: 12px; }
-    #ui label { display: block; font-size: 12px; margin-top: 8px; }
-    #ui input[type=range] { width: 100%; }
-    #ui .val { float: right; opacity: 0.85; }
-    #ui .row { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-    #ui button {
+    .app-top {
+      display: flex; align-items: center; gap: 10px;
+      padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+      background: #222228; border-bottom: 1px solid #333; flex-shrink: 0;
+    }
+    .app-top h1 { font-size: 15px; margin: 0; opacity: 0.9; white-space: nowrap; }
+    .app-top a { color: #8cb4ff; font-size: 12px; text-decoration: none; white-space: nowrap; }
+    #tabs { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; justify-content: center; }
+    #tabs button {
+      flex: 1 1 18%; min-width: 48px; max-width: 72px;
+      background: #2a2a30; color: #777; border: 2px solid #3a3a42;
+      border-radius: 6px; padding: 7px 0; font-size: 10px; font-weight: 500;
+      cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    #tabs button.active[data-tab="walk"] {
+      background: #1a5fb4; color: #fff; border-color: #6eb3ff; font-weight: 700;
+      box-shadow: 0 0 10px rgba(110, 179, 255, 0.45);
+    }
+    #tabs button.active[data-tab="ripple"] {
+      background: #0f766e; color: #fff; border-color: #2dd4bf; font-weight: 700;
+      box-shadow: 0 0 10px rgba(45, 212, 191, 0.45);
+    }
+    #tabs button.active[data-tab="wave"] {
+      background: #0369a1; color: #fff; border-color: #38bdf8; font-weight: 700;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+    }
+    #tabs button.active[data-tab="spin"] {
+      background: #b86e00; color: #fff; border-color: #ffb347; font-weight: 700;
+      box-shadow: 0 0 10px rgba(255, 179, 71, 0.45);
+    }
+    #tabs button.active[data-tab="stretch"] {
+      background: #6b21a8; color: #fff; border-color: #c084fc; font-weight: 700;
+      box-shadow: 0 0 10px rgba(192, 132, 252, 0.45);
+    }
+    #tabs button.active[data-tab="rotate"] {
+      background: #9d174d; color: #fff; border-color: #f472b6; font-weight: 700;
+      box-shadow: 0 0 10px rgba(244, 114, 182, 0.45);
+    }
+    #tabs button.active[data-tab="control"] {
+      background: #1a7f37; color: #fff; border-color: #4ade80; font-weight: 700;
+      box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
+    }
+    #tabs button:not(.active):hover { background: #35353d; color: #bbb; border-color: #555; }
+    .settings-btn {
+      background: #35353f; color: #ccc; border: 2px solid #4a4a55;
+      border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    }
+    .settings-btn:hover { background: #45454f; color: #fff; }
+    body.settings-open .settings-btn { background: #1a5fb4; border-color: #6eb3ff; color: #fff; }
+    #mode-main {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 20px; min-height: 0; gap: 20px;
+    }
+    .mode-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; max-width: 320px; }
+    .mode-panel.hidden { display: none; }
+    .mode-title { font-size: 22px; font-weight: 700; margin: 0; opacity: 0.9; }
+    .mode-desc { font-size: 14px; opacity: 0.55; margin: 0; text-align: center; line-height: 1.4; }
+    .mode-actions { display: flex; gap: 12px; width: 100%; }
+    .mode-actions button, .spin-row button {
+      flex: 1; background: #2f6fd0; color: #fff; border: 0; border-radius: 10px;
+      padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    .mode-actions button.off, .spin-row button.off { background: #444; }
+    .mode-actions button.go { background: #1a7f37; }
+    .mode-actions button.stop { background: #cf222e; }
+    .spin-row { display: flex; gap: 12px; width: 100%; }
+    .spin-row button { font-size: 14px; padding: 16px 12px; }
+    .dpad-ring {
+      display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+      gap: 14px; width: min(70vw, 240px); aspect-ratio: 1;
+    }
+    .dpad-core { grid-column: 2; grid-row: 2; border-radius: 12px; background: #25252c; pointer-events: none; }
+    .pad-btn {
+      display: flex; align-items: center; justify-content: center;
+      border: none; border-radius: 14px; font-size: 26px; font-weight: 700; color: #ccc;
+      background: #35353f; cursor: pointer; user-select: none; touch-action: none;
+      transition: background 0.1s, transform 0.08s;
+    }
+    .pad-btn:active, .pad-btn.active { transform: scale(0.94); color: #fff; }
+    .pad-up { grid-column: 2; grid-row: 1; }
+    .pad-left { grid-column: 1; grid-row: 2; }
+    .pad-right { grid-column: 3; grid-row: 2; }
+    .pad-down { grid-column: 2; grid-row: 3; }
+    .pad-up.active, .pad-up:active { background: #1a7f37; }
+    .pad-down.active, .pad-down:active { background: #a03030; }
+    .pad-left.active, .pad-left:active, .pad-right.active, .pad-right:active { background: #1a5fb4; }
+    .ctrl-spin-row { display: flex; gap: 12px; width: min(70vw, 240px); margin-top: 16px; }
+    .ctrl-spin-btn {
+      flex: 1; background: #b86e00; color: #fff; border: 0; border-radius: 10px;
+      padding: 14px 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+      user-select: none; touch-action: none; transition: background 0.1s, transform 0.08s;
+    }
+    .ctrl-spin-btn:active, .ctrl-spin-btn.active { background: #d97706; transform: scale(0.96); }
+    #live-status {
+      font-size: 15px; font-weight: 600; text-align: center; min-height: 1.4em;
+      opacity: 0.85; margin: 0 0 4px;
+    }
+    #live-status.live { opacity: 1; color: #4ade80; }
+    #robot { font-size: 12px; opacity: 0.75; margin: 0; }
+    #app-footer {
+      flex-shrink: 0; padding: 12px 16px max(14px, env(safe-area-inset-bottom));
+      background: rgba(0, 0, 0, 0.28); border-top: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+    }
+    #settings-panel {
+      position: fixed; inset: 0; z-index: 10;
+      display: none; flex-direction: column; background: #1a1a1e;
+    }
+    body.settings-open #settings-panel { display: flex; }
+    .settings-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+      background: #222228; border-bottom: 1px solid #333; flex-shrink: 0;
+    }
+    .settings-top h2 { font-size: 15px; margin: 0; }
+    #settings-3d { flex: 0 0 42vh; min-height: 180px; position: relative; background: #121216; }
+    #settings-3d canvas { display: block; width: 100% !important; height: 100% !important; }
+    #settings-scroll {
+      flex: 1; overflow-y: auto; padding: 12px 14px max(16px, env(safe-area-inset-bottom));
+    }
+    .panel.hidden { display: none; }
+    #settings-scroll label { display: block; font-size: 12px; margin-top: 8px; }
+    #settings-scroll input[type=range] { width: 100%; }
+    #settings-scroll .val { float: right; opacity: 0.85; }
+    #settings-scroll .row { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+    #settings-scroll button:not(.tab) {
       background: #2f6fd0; color: #fff; border: 0; border-radius: 5px;
       padding: 7px 10px; font-size: 12px; cursor: pointer; flex: 1; min-width: 70px;
     }
-    #ui button.off { background: #444; }
-    #ui button.go { background: #1a7f37; }
-    #ui button.stop { background: #cf222e; }
-    #ui button.deploy { background: #b86e00; }
-    #ui button:disabled { opacity: 0.45; cursor: default; }
+    #settings-scroll button.off { background: #444; }
+    #settings-scroll button.go { background: #1a7f37; }
+    #settings-scroll button.stop { background: #cf222e; }
+    #settings-scroll button.deploy { background: #b86e00; }
+    #settings-scroll button:disabled { opacity: 0.45; cursor: default; }
+    #chk { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 10px; }
+    #chk input { width: auto; }
     #status { font-size: 11px; margin-top: 10px; line-height: 1.45; opacity: 0.9; }
     #status .warn { color: #ff9c5b; }
     #status .bad { color: #ff6161; }
-    #robot { font-size: 11px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333; opacity: 0.9; }
     #hint { font-size: 11px; opacity: 0.55; margin-top: 8px; line-height: 1.35; }
-    #chk { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 10px; }
-    #chk input { width: auto; }
+    .tab-hint { font-size: 11px; opacity: 0.65; margin: 0; line-height: 1.4; }
+    .settings-section { font-size: 11px; font-weight: 700; opacity: 0.5; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 6px; }
   </style>
 </head>
 <body>
-  <div id="ui">
-    <h1>Walk preview</h1>
-    <a href="/">← Calibration</a> · <a href="/spin">Spin →</a>
-    <div class="row">
-      <button id="play">Pause</button>
-      <button id="reset">Reset</button>
+  <div id="app-screen">
+    <header class="app-top">
+      <h1>Hexapod</h1>
+      <div id="tabs">
+        <button type="button" class="tab active" data-tab="walk">Walk</button>
+        <button type="button" class="tab" data-tab="ripple">Ripple</button>
+        <button type="button" class="tab" data-tab="wave">Wave</button>
+        <button type="button" class="tab" data-tab="spin">Spin</button>
+        <button type="button" class="tab" data-tab="stretch">Stretch</button>
+        <button type="button" class="tab" data-tab="rotate">Rotate</button>
+        <button type="button" class="tab" data-tab="control">Control</button>
+      </div>
+      <button type="button" id="settingsBtn" class="settings-btn">Settings</button>
+    </header>
+    <main id="mode-main">
+      <div id="mode-walk" class="mode-panel"></div>
+      <div id="mode-ripple" class="mode-panel hidden">
+        <p class="mode-title">Ripple</p>
+        <p class="mode-desc">Alternating sides · rear → front</p>
+      </div>
+      <div id="mode-wave" class="mode-panel hidden">
+        <p class="mode-title">Wave</p>
+        <p class="mode-desc">Clockwise around body · one leg at a time</p>
+      </div>
+      <div id="mode-spin" class="mode-panel hidden">
+        <div class="spin-row">
+          <button id="spinCcw">Spin CCW</button>
+          <button id="spinCw">Spin CW</button>
+        </div>
+        <div class="spin-row">
+          <button id="spinStop" class="off">Stop spin</button>
+        </div>
+      </div>
+      <div id="mode-stretch" class="mode-panel hidden">
+        <p class="mode-title">Stretch</p>
+        <p class="mode-desc">Feet planted · body leans left ↔ right</p>
+      </div>
+      <div id="mode-rotate" class="mode-panel hidden">
+        <p class="mode-title">Rotate</p>
+        <p class="mode-desc">Feet planted · body leans in a circle</p>
+      </div>
+      <div id="mode-control" class="mode-panel hidden">
+        <div class="dpad-ring">
+          <button type="button" id="ctrlForward" class="pad-btn pad-up" aria-label="Forward">▲</button>
+          <button type="button" id="ctrlLeft" class="pad-btn pad-left" aria-label="Left">◀</button>
+          <div class="dpad-core"></div>
+          <button type="button" id="ctrlRight" class="pad-btn pad-right" aria-label="Right">▶</button>
+          <button type="button" id="ctrlBackward" class="pad-btn pad-down" aria-label="Backward">▼</button>
+        </div>
+        <div class="ctrl-spin-row">
+          <button type="button" id="ctrlSpinCcw" class="ctrl-spin-btn">↺ CCW</button>
+          <button type="button" id="ctrlSpinCw" class="ctrl-spin-btn">↻ CW</button>
+        </div>
+      </div>
+      <div id="robot-main-row" class="mode-actions hidden">
+        <button class="go" id="robotBtn">Start robot</button>
+      </div>
+    </main>
+    <footer id="app-footer">
+      <p id="live-status">Walk preview</p>
+      <p id="robot">Robot: loading…</p>
+    </footer>
+  </div>
+  <div id="settings-panel">
+    <header class="settings-top">
+      <h2>Settings &amp; 3D preview</h2>
+      <button type="button" id="settingsClose" class="settings-btn">Done</button>
+    </header>
+    <div id="settings-3d"></div>
+    <div id="settings-scroll">
+      <div class="settings-section">Robot</div>
+      <div id="robot-controls">
+        <div class="row">
+          <button class="deploy" id="deploy">Deploy to robot</button>
+        </div>
+      </div>
+      <div class="settings-section">Preview</div>
+      <div class="row">
+        <button id="play">Pause</button>
+        <button id="reset">Reset</button>
+      </div>
+      <div class="settings-section">Locomotion</div>
+      <div id="panel-walk" class="panel">
+        <p class="tab-hint" id="walk-gait-hint">Tripod · two groups of three</p>
+        <label>Stride <span class="val" id="v-stride">60 mm</span>
+          <input id="stride" type="range" min="10" max="110" value="60" step="1"/>
+        </label>
+        <label>Crab angle <span class="val" id="v-crab">0°</span>
+          <input id="crab" type="range" min="-90" max="90" value="0" step="1"/>
+        </label>
+      </div>
+      <div id="panel-spin" class="panel hidden">
+        <label>Spin rate <span class="val" id="v-turn">20 °/s</span>
+          <input id="turn" type="range" min="-35" max="35" value="20" step="1"/>
+        </label>
+      </div>
+      <div id="panel-stretch" class="panel hidden">
+        <p class="tab-hint">Uses body height &amp; foot radius below</p>
+      </div>
+      <div id="panel-rotate" class="panel hidden">
+        <p class="tab-hint">Uses body height &amp; foot radius below</p>
+      </div>
+      <div class="settings-section">Gait</div>
+      <div id="gait-settings">
+        <label id="chk"><input id="freezeHips" type="checkbox" checked/> Freeze hips (safer for walk)</label>
+        <label>Cadence <span class="val" id="v-freq">0.8 Hz</span>
+          <input id="freq" type="range" min="0.1" max="2" value="0.8" step="0.05"/>
+        </label>
+        <label>Step height <span class="val" id="v-lift">30 mm</span>
+          <input id="lift" type="range" min="5" max="60" value="30" step="1"/>
+        </label>
+        <label>Body height <span class="val" id="v-height">95 mm</span>
+          <input id="height" type="range" min="65" max="115" value="95" step="1"/>
+        </label>
+        <label>Foot radius <span class="val" id="v-radius">140 mm</span>
+          <input id="radius" type="range" min="110" max="178" value="140" step="1"/>
+        </label>
+        <label>Front/rear splay <span class="val" id="v-splay">22°</span>
+          <input id="splay" type="range" min="8" max="35" value="22" step="0.5"/>
+        </label>
+      </div>
+      <div id="status"></div>
+      <div id="hint">Deploy sends params · Pause/reset affect 3D preview only · Drag orbit in 3D view</div>
+      <p style="margin-top:12px;font-size:12px"><a href="/">← Calibration</a></p>
     </div>
-    <div class="row">
-      <button class="deploy" id="deploy">Deploy to robot</button>
-    </div>
-    <div class="row">
-      <button class="go" id="robotBtn">Start robot</button>
-    </div>
-    <label id="chk"><input id="freezeHips" type="checkbox" checked/> Freeze hips (safer)</label>
-    <label>Cadence <span class="val" id="v-freq">0.8 Hz</span>
-      <input id="freq" type="range" min="0.1" max="2" value="0.8" step="0.05"/>
-    </label>
-    <label>Stride <span class="val" id="v-stride">60 mm</span>
-      <input id="stride" type="range" min="10" max="110" value="60" step="1"/>
-    </label>
-    <label>Step height <span class="val" id="v-lift">30 mm</span>
-      <input id="lift" type="range" min="5" max="60" value="30" step="1"/>
-    </label>
-    <label>Body height <span class="val" id="v-height">95 mm</span>
-      <input id="height" type="range" min="65" max="115" value="95" step="1"/>
-    </label>
-    <label>Foot radius <span class="val" id="v-radius">140 mm</span>
-      <input id="radius" type="range" min="110" max="178" value="140" step="1"/>
-    </label>
-    <label>Front/rear splay <span class="val" id="v-splay">22°</span>
-      <input id="splay" type="range" min="8" max="35" value="22" step="0.5"/>
-    </label>
-    <label>Crab angle <span class="val" id="v-crab">0°</span>
-      <input id="crab" type="range" min="-90" max="90" value="0" step="1"/>
-    </label>
-    <div id="status"></div>
-    <div id="robot">Robot: loading…</div>
-    <div id="hint">Forward / crab walk preview. Deploy sends params; Start runs the robot.<br/>Needs internet for Three.js CDN.<br/>Drag orbit · scroll zoom</div>
   </div>
   <script type="importmap">
     {
@@ -136,12 +343,12 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     ];
 
     const hips = [
-      { name: 'LF', x: 0.073282, y: 0.061608, yaw0: 1.161125, splay: -1, tripod: 0 },
-      { name: 'LM', x: 0.0, y: 0.093430, yaw0: Math.PI / 2, splay: 0, tripod: 1 },
-      { name: 'LR', x: -0.073282, y: 0.061608, yaw0: 1.980468, splay: 1, tripod: 0 },
-      { name: 'RF', x: 0.073282, y: -0.061608, yaw0: -1.161125, splay: 1, tripod: 1 },
-      { name: 'RM', x: 0.0, y: -0.093430, yaw0: -Math.PI / 2, splay: 0, tripod: 0 },
-      { name: 'RR', x: -0.073282, y: -0.061608, yaw0: -1.980468, splay: -1, tripod: 1 },
+      { name: 'LF', x: 0.073282, y: 0.061608, yaw0: 1.161125, splay: -1, tripod: 0, ripple: 1 / 6, wave: 5 / 6 },
+      { name: 'LM', x: 0.0, y: 0.093430, yaw0: Math.PI / 2, splay: 0, tripod: 1, ripple: 0.5, wave: 4 / 6 },
+      { name: 'LR', x: -0.073282, y: 0.061608, yaw0: 1.980468, splay: 1, tripod: 0, ripple: 5 / 6, wave: 3 / 6 },
+      { name: 'RF', x: 0.073282, y: -0.061608, yaw0: -1.161125, splay: 1, tripod: 1, ripple: 0, wave: 0 },
+      { name: 'RM', x: 0.0, y: -0.093430, yaw0: -Math.PI / 2, splay: 0, tripod: 0, ripple: 2 / 6, wave: 1 / 6 },
+      { name: 'RR', x: -0.073282, y: -0.061608, yaw0: -1.980468, splay: -1, tripod: 1, ripple: 4 / 6, wave: 2 / 6 },
     ];
 
     const scene = new THREE.Scene();
@@ -150,8 +357,9 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     camera.position.set(0.42, 0.34, 0.42);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(innerWidth, innerHeight);
-    document.body.appendChild(renderer.domElement);
+    const settings3d = document.getElementById('settings-3d');
+    settings3d.appendChild(renderer.domElement);
+    renderer.domElement.style.display = 'none';
     const controls = new OrbitControls(camera, renderer.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 0.55));
     const light = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -188,6 +396,13 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       new THREE.LineBasicMaterial({ color: 0x9ec1ff })
     ));
     robot.add(new THREE.AxesHelper(0.1));
+    const nose = new THREE.Mesh(
+      new THREE.ConeGeometry(0.012, 0.035, 8),
+      new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0x441111 })
+    );
+    nose.rotation.z = -Math.PI / 2;
+    nose.position.set(0.095, 0.008, 0);
+    robot.add(nose);
 
     function bar(length, thick, width, color) {
       const g = new THREE.BoxGeometry(length, thick, width);
@@ -341,7 +556,7 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     });
 
     const ui = {};
-    ['freq', 'stride', 'lift', 'height', 'radius', 'splay', 'crab'].forEach((id) => {
+    ['freq', 'stride', 'lift', 'height', 'radius', 'splay', 'crab', 'turn'].forEach((id) => {
       ui[id] = document.getElementById(id);
     });
     const freezeEl = document.getElementById('freezeHips');
@@ -349,12 +564,190 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     const resetBtn = document.getElementById('reset');
     const deployBtn = document.getElementById('deploy');
     const robotBtn = document.getElementById('robotBtn');
+    const robotMainRow = document.getElementById('robot-main-row');
     const statusEl = document.getElementById('status');
     const robotEl = document.getElementById('robot');
+    const hintEl = document.getElementById('hint');
+    const liveStatusEl = document.getElementById('live-status');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsClose = document.getElementById('settingsClose');
+    const ctrlForwardBtn = document.getElementById('ctrlForward');
+    const ctrlBackwardBtn = document.getElementById('ctrlBackward');
+    const ctrlLeftBtn = document.getElementById('ctrlLeft');
+    const ctrlRightBtn = document.getElementById('ctrlRight');
+    const ctrlSpinCcwBtn = document.getElementById('ctrlSpinCcw');
+    const ctrlSpinCwBtn = document.getElementById('ctrlSpinCw');
+    let mode = 'walk';
+    let controlActive = false;
+    let settingsOpen = false;
+
+    function resizeRenderer() {
+      if (!settingsOpen) return;
+      const w = settings3d.clientWidth;
+      const h = settings3d.clientHeight;
+      if (w < 1 || h < 1) return;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false);
+    }
+
+    function setSettingsOpen(open) {
+      settingsOpen = open;
+      document.body.classList.toggle('settings-open', open);
+      settingsBtn.textContent = open ? 'Done' : 'Settings';
+      renderer.domElement.style.display = open ? 'block' : 'none';
+      if (open) requestAnimationFrame(resizeRenderer);
+    }
+
+    function toggleSettings() {
+      setSettingsOpen(!settingsOpen);
+    }
+    settingsBtn.onclick = toggleSettings;
+    settingsClose.onclick = toggleSettings;
+
+    function syncTabs() {
+      document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === mode));
+    }
+
+    function setRobotText(text) {
+      robotEl.textContent = text;
+    }
+
+    function updateLiveStatus() {
+      if (!liveStatusEl) return;
+      if (controlActive) {
+        const label = controlActive === 'spinCcw' ? 'SPIN CCW'
+          : controlActive === 'spinCw' ? 'SPIN CW'
+          : controlActive.toUpperCase();
+        liveStatusEl.textContent = label;
+        liveStatusEl.classList.add('live');
+      } else if (mode === 'control') {
+        liveStatusEl.textContent = 'Hold a direction to move';
+        liveStatusEl.classList.remove('live');
+      }
+    }
+
+    function isLocomotion() {
+      return mode === 'walk' || mode === 'ripple' || mode === 'wave';
+    }
+    function isSequentialGait() {
+      return mode === 'ripple' || mode === 'wave';
+    }
+    function deployGaitName() {
+      if (mode === 'ripple') return 'ripple';
+      if (mode === 'wave') return 'wave';
+      return 'tripod';
+    }
+
+    function stretchKind() {
+      if (mode === 'stretch') return 'linear';
+      if (mode === 'rotate') return 'rotate';
+      return false;
+    }
+
+    function setTabPanels() {
+      document.getElementById('mode-walk').classList.toggle('hidden', mode !== 'walk');
+      document.getElementById('mode-ripple').classList.toggle('hidden', mode !== 'ripple');
+      document.getElementById('mode-wave').classList.toggle('hidden', mode !== 'wave');
+      document.getElementById('mode-spin').classList.toggle('hidden', mode !== 'spin');
+      document.getElementById('mode-stretch').classList.toggle('hidden', mode !== 'stretch');
+      document.getElementById('mode-rotate').classList.toggle('hidden', mode !== 'rotate');
+      document.getElementById('mode-control').classList.toggle('hidden', mode !== 'control');
+      document.getElementById('panel-walk').classList.toggle('hidden', !isLocomotion());
+      document.getElementById('panel-spin').classList.toggle('hidden', mode !== 'spin' && mode !== 'control');
+      document.getElementById('panel-stretch').classList.toggle('hidden', mode !== 'stretch');
+      document.getElementById('panel-rotate').classList.toggle('hidden', mode !== 'rotate');
+      const gaitHint = document.getElementById('walk-gait-hint');
+      if (gaitHint) {
+        gaitHint.textContent = mode === 'ripple'
+          ? 'Ripple · alternating sides rear→front'
+          : mode === 'wave'
+            ? 'Wave · RF→RM→RR→LR→LM→LF'
+            : 'Tripod · two groups of three';
+      }
+      robotMainRow.classList.toggle('hidden', mode === 'control');
+      syncTabs();
+      updateLiveStatus();
+    }
+
+    const CONTROL_CRAB = { forward: 0, backward: 180, left: 90, right: -90 };
+    const ctrlBtns = {
+      forward: ctrlForwardBtn,
+      backward: ctrlBackwardBtn,
+      left: ctrlLeftBtn,
+      right: ctrlRightBtn,
+      spinCcw: ctrlSpinCcwBtn,
+      spinCw: ctrlSpinCwBtn,
+    };
+
+    function isControlSpin(dir) {
+      return dir === 'spinCcw' || dir === 'spinCw';
+    }
+
+    function controlCrabDeg(dir) {
+      if (isControlSpin(dir)) return 0;
+      return CONTROL_CRAB[dir] ?? 0;
+    }
+
+    function controlTurnDps(dir) {
+      const rate = Math.abs(+ui.turn.value || 20);
+      return dir === 'spinCcw' ? rate : -rate;
+    }
+
+    function clearControlButtons() {
+      Object.values(ctrlBtns).forEach((btn) => btn.classList.remove('active'));
+    }
+
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.onclick = async () => {
+        const prev = mode;
+        if (mode === 'control' && controlActive) controlStop();
+        if (prev === 'stretch' || prev === 'rotate') {
+          try { await robotStretch('off'); } catch (e) { setRobotText(String(e)); }
+          robotOn = false;
+        } else if (robotOn && (prev === 'walk' || prev === 'ripple' || prev === 'wave' || prev === 'spin')) {
+          try {
+            const t = await (await fetch('/api/walk/stop')).text();
+            setRobotText('Robot: ' + t);
+          } catch (e) { setRobotText(String(e)); }
+          robotOn = false;
+        }
+        mode = btn.dataset.tab;
+        syncTabs();
+        setTabPanels();
+        robotBtn.textContent = 'Start robot';
+        robotBtn.className = 'go';
+        if (mode === 'spin' && Math.abs(+ui.turn.value) < 0.5) ui.turn.value = 20;
+        if (mode === 'spin') freezeEl.checked = false;
+        if (mode === 'stretch' || mode === 'rotate') {
+          playing = true;
+          playBtn.textContent = 'Pause';
+          playBtn.classList.remove('off');
+          stretchPhase = 0;
+        } else if (mode === 'control') {
+          playing = false;
+          fetch('/api/walk/stop').then((r) => r.text()).then((t) => {
+            robotOn = false;
+            setRobotText('Robot: ' + t);
+          }).catch(() => {});
+        }
+        markDirty();
+      };
+    });
+    setTabPanels();
 
     let playing = true;
     let dirty = true;
     let robotOn = false;
+    let stretchPhase = 0;
+
+    async function robotStretch(stretchApiMode) {
+      if (stretchApiMode && dirty) await deploy();
+      const q = stretchApiMode || 'off';
+      const t = await (await fetch('/api/walk/stretch?mode=' + q)).text();
+      setRobotText('Robot: ' + t);
+      return t;
+    }
 
     playBtn.onclick = () => {
       playing = !playing;
@@ -363,7 +756,20 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     };
     resetBtn.onclick = () => {
       phase = 0;
+      stretchPhase = 0;
       pose.x = 0; pose.y = 0; pose.heading = 0;
+    };
+
+    function startSpin(sign) {
+      ui.turn.value = sign * Math.abs(+ui.turn.value || 20);
+      freezeEl.checked = false;
+      markDirty();
+    }
+    document.getElementById('spinCcw').onclick = () => startSpin(1);
+    document.getElementById('spinCw').onclick = () => startSpin(-1);
+    document.getElementById('spinStop').onclick = () => {
+      ui.turn.value = 0;
+      markDirty();
     };
 
     function markDirty() {
@@ -375,19 +781,31 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     freezeEl.addEventListener('change', markDirty);
 
     function readUI() {
+      const sk = stretchKind();
+      let turnDps = 0;
+      if (!sk) {
+        if (mode === 'spin') turnDps = +ui.turn.value;
+        else if (mode === 'control' && isControlSpin(controlActive)) turnDps = controlTurnDps(controlActive);
+      }
+      const walking = !sk && (
+        isLocomotion() ||
+        (mode === 'control' && controlActive && !isControlSpin(controlActive))
+      );
       const v = {
         freq: +ui.freq.value,
-        stride: +ui.stride.value / 1000,
+        stride: walking ? +ui.stride.value / 1000 : 0,
         lift: +ui.lift.value / 1000,
         height: +ui.height.value / 1000,
         radius: +ui.radius.value / 1000,
         splay: +ui.splay.value * DEG,
-        crab: +ui.crab.value * DEG,
-        turn: 0,
+        crab: isLocomotion() ? +ui.crab.value * DEG
+          : (mode === 'control' && controlActive ? controlCrabDeg(controlActive) * DEG : 0),
+        turn: turnDps * DEG,
         freezeHips: freezeEl.checked,
       };
       document.getElementById('v-freq').textContent = v.freq.toFixed(2) + ' Hz';
       document.getElementById('v-stride').textContent = ui.stride.value + ' mm';
+      document.getElementById('v-turn').textContent = turnDps + ' °/s';
       document.getElementById('v-lift').textContent = ui.lift.value + ' mm';
       document.getElementById('v-height').textContent = ui.height.value + ' mm';
       document.getElementById('v-radius').textContent = ui.radius.value + ' mm';
@@ -404,14 +822,41 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       if (p.radius_mm != null) ui.radius.value = p.radius_mm;
       if (p.splay_deg != null) ui.splay.value = p.splay_deg;
       if (p.crab_deg != null) ui.crab.value = p.crab_deg;
+      if (p.turn_dps != null) ui.turn.value = p.turn_dps;
       if (p.freezeHips != null) freezeEl.checked = !!p.freezeHips;
+      if (p.gait === 'wave') {
+        mode = 'wave';
+        setTabPanels();
+      } else if (p.gait === 'ripple') {
+        mode = 'ripple';
+        setTabPanels();
+      } else if (Math.abs(p.turn_dps || 0) > 0.5 && (p.stride_mm == null || p.stride_mm < 1)) {
+        mode = 'spin';
+        setTabPanels();
+      }
       dirty = false;
       deployBtn.textContent = 'Deployed';
       deployBtn.disabled = true;
       readUI();
     }
 
-    async function deploy() {
+    async function deployControlSpin(dir) {
+      const turn = controlTurnDps(dir);
+      const q =
+        'freq=' + ui.freq.value +
+        '&stride=0' +
+        '&lift=' + ui.lift.value +
+        '&height=' + ui.height.value +
+        '&radius=' + ui.radius.value +
+        '&splay=' + ui.splay.value +
+        '&crab=0&turn=' + turn +
+        '&gait=tripod' +
+        '&freezeHips=0';
+      return (await fetch('/api/walk/params?' + q)).text();
+    }
+
+    async function deployControl(dir) {
+      const crab = controlCrabDeg(dir);
       const q =
         'freq=' + ui.freq.value +
         '&stride=' + ui.stride.value +
@@ -419,27 +864,126 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
         '&height=' + ui.height.value +
         '&radius=' + ui.radius.value +
         '&splay=' + ui.splay.value +
-        '&crab=' + ui.crab.value +
-        '&turn=0' +
+        '&crab=' + crab + '&turn=0' +
+        '&gait=tripod' +
+        '&freezeHips=' + (freezeEl.checked ? '1' : '0');
+      return (await fetch('/api/walk/params?' + q)).text();
+    }
+
+    async function controlStart(dir) {
+      if (controlActive) return;
+      controlActive = dir;
+      playing = true;
+      clearControlButtons();
+      ctrlBtns[dir]?.classList.add('active');
+      updateLiveStatus();
+      try {
+        const t = isControlSpin(dir) ? await deployControlSpin(dir) : await deployControl(dir);
+        setRobotText('Robot params: ' + t);
+        const s = await (await fetch('/api/walk/start')).text();
+        robotOn = s.indexOf('WALKING') >= 0;
+        setRobotText('Robot: ' + s);
+      } catch (e) {
+        controlActive = false;
+        playing = false;
+        clearControlButtons();
+        updateLiveStatus();
+        setRobotText(String(e));
+      }
+    }
+
+    async function controlStop() {
+      if (!controlActive && !robotOn) return;
+      controlActive = false;
+      playing = false;
+      clearControlButtons();
+      updateLiveStatus();
+      try {
+        const s = await (await fetch('/api/walk/stop')).text();
+        robotOn = false;
+        setRobotText('Robot: ' + s);
+      } catch (e) {
+        setRobotText(String(e));
+      }
+    }
+
+    function bindHold(el, onPress, onRelease) {
+      let held = false;
+      const press = (e) => {
+        e.preventDefault();
+        if (held) return;
+        held = true;
+        onPress();
+      };
+      const release = (e) => {
+        e.preventDefault();
+        if (!held) return;
+        held = false;
+        onRelease();
+      };
+      el.addEventListener('mousedown', press);
+      el.addEventListener('mouseup', release);
+      el.addEventListener('mouseleave', release);
+      el.addEventListener('touchstart', press, { passive: false });
+      el.addEventListener('touchend', release);
+      el.addEventListener('touchcancel', release);
+    }
+    bindHold(ctrlForwardBtn, () => controlStart('forward'), () => controlStop());
+    bindHold(ctrlBackwardBtn, () => controlStart('backward'), () => controlStop());
+    bindHold(ctrlLeftBtn, () => controlStart('left'), () => controlStop());
+    bindHold(ctrlRightBtn, () => controlStart('right'), () => controlStop());
+    bindHold(ctrlSpinCcwBtn, () => controlStart('spinCcw'), () => controlStop());
+    bindHold(ctrlSpinCwBtn, () => controlStart('spinCw'), () => controlStop());
+
+    async function deploy() {
+      const loc = isLocomotion();
+      const stride = loc ? ui.stride.value : 0;
+      const crab = loc ? ui.crab.value : 0;
+      const turn = mode === 'spin' ? ui.turn.value : 0;
+      const q =
+        'freq=' + ui.freq.value +
+        '&stride=' + stride +
+        '&lift=' + ui.lift.value +
+        '&height=' + ui.height.value +
+        '&radius=' + ui.radius.value +
+        '&splay=' + ui.splay.value +
+        '&crab=' + crab +
+        '&turn=' + turn +
+        '&gait=' + deployGaitName() +
         '&freezeHips=' + (freezeEl.checked ? '1' : '0');
       const t = await (await fetch('/api/walk/params?' + q)).text();
       dirty = false;
       deployBtn.textContent = 'Deployed';
       deployBtn.disabled = true;
-      robotEl.textContent = 'Robot params: ' + t;
+      setRobotText('Robot params: ' + t);
     }
 
     async function toggleRobot() {
       if (dirty) await deploy();
+      const sk = stretchKind();
+      if (sk) {
+        let t;
+        if (robotOn) {
+          t = await robotStretch('off');
+          robotOn = false;
+        } else {
+          t = await robotStretch(sk);
+          robotOn = t.indexOf('STRETCH') >= 0 && t.indexOf('OFF') < 0;
+        }
+        robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
+        robotBtn.className = robotOn ? 'stop' : 'go';
+        setRobotText('Robot: ' + t);
+        return;
+      }
       const t = await (await fetch('/api/walk/toggle')).text();
       robotOn = t.indexOf('WALKING') >= 0;
       robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
       robotBtn.className = robotOn ? 'stop' : 'go';
-      robotEl.textContent = 'Robot: ' + t;
+      setRobotText('Robot: ' + t);
     }
 
-    deployBtn.onclick = () => deploy().catch((e) => { robotEl.textContent = String(e); });
-    robotBtn.onclick = () => toggleRobot().catch((e) => { robotEl.textContent = String(e); });
+    deployBtn.onclick = () => deploy().catch((e) => { setRobotText(String(e)); });
+    robotBtn.onclick = () => toggleRobot().catch((e) => { setRobotText(String(e)); });
 
     async function loadFromRobot() {
       try {
@@ -448,10 +992,15 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
         robotOn = !!p.enabled;
         robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
         robotBtn.className = robotOn ? 'stop' : 'go';
-        robotEl.textContent = 'Robot: ' + (robotOn ? 'WALKING' : 'STOPPED') +
-          (p.freezeHips ? ' · hips frozen' : '');
+        const sm = p.stretch_mode || 'off';
+        if (p.enabled && sm === 'linear') mode = 'stretch';
+        else if (p.enabled && sm === 'rotate') mode = 'rotate';
+        syncTabs();
+        setTabPanels();
+        setRobotText('Robot: ' + (robotOn ? (sm === 'linear' ? 'STRETCH linear' : sm === 'rotate' ? 'STRETCH rotate' : 'WALKING') : 'STOPPED') +
+          (p.freezeHips ? ' · hips frozen' : ''));
       } catch (e) {
-        robotEl.textContent = 'Could not load robot params';
+        setRobotText('Could not load robot params');
         markDirty();
       }
     }
@@ -459,34 +1008,110 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
     async function pollRobot() {
       try {
         const t = await (await fetch('/api/walk/status')).text();
-        robotOn = t.indexOf('WALKING') >= 0;
+        robotOn = t.indexOf('WALKING') >= 0 || t.indexOf('STRETCH') >= 0;
         robotBtn.textContent = robotOn ? 'Stop robot' : 'Start robot';
         robotBtn.className = robotOn ? 'stop' : 'go';
-        if (!dirty) robotEl.textContent = 'Robot: ' + t;
+        if (!dirty) setRobotText('Robot: ' + t);
       } catch (e) {}
     }
 
-    const DUTY = 0.5;
+    const DUTY_TRIPOD = 0.5;
+    const DUTY_SEQUENTIAL = 5 / 6;
     let phase = 0;
     const pose = { x: 0, y: 0, heading: 0 };
     const camFollow = new THREE.Vector3();
 
+    function gaitDuty() {
+      return isSequentialGait() ? DUTY_SEQUENTIAL : DUTY_TRIPOD;
+    }
+    function legPhase(h) {
+      if (mode === 'wave') return (phase + h.wave) % 1;
+      if (mode === 'ripple') return (phase + h.ripple) % 1;
+      return (phase + h.tripod * 0.5) % 1;
+    }
+
+    // Spin: feet anchored in world, transformed to body for IK while chassis yaws.
+    function footTarget(nx, ny, sx, sy, p, pose, spinMode, duty) {
+      if (spinMode) {
+        const ch = Math.cos(pose.heading), sh = Math.sin(pose.heading);
+        const ci = Math.cos(-pose.heading), si = Math.sin(-pose.heading);
+        const wsx = ch * sx - sh * sy;
+        const wsy = sh * sx + ch * sy;
+        let fwx, fwy;
+        if (p < duty) {
+          const u = p / duty;
+          fwx = nx + wsx * (0.5 - u);
+          fwy = ny + wsy * (0.5 - u);
+        } else {
+          const u = (p - duty) / (1 - duty);
+          fwx = nx + wsx * (u - 0.5);
+          fwy = ny + wsy * (u - 0.5);
+        }
+        return {
+          fx: ci * (fwx - pose.x) - si * (fwy - pose.y),
+          fy: si * (fwx - pose.x) + ci * (fwy - pose.y),
+        };
+      }
+      if (p < duty) {
+        const u = p / duty;
+        return { fx: nx + sx * (0.5 - u), fy: ny + sy * (0.5 - u) };
+      }
+      const u = (p - duty) / (1 - duty);
+      return { fx: nx + sx * (u - 0.5), fy: ny + sy * (u - 0.5) };
+    }
+
+    const STRETCH_AMP = 0.035;
+    const STRETCH_HZ = 0.22;
+    const STRETCH_ROT_HZ = 0.18;
+
+    function stretchOffset(u, kind) {
+      if (kind === 'linear') {
+        const half = (u % 1) < 0.5 ? u * 2 : (u - 0.5) * 2;
+        const mag = Math.sin(Math.PI * half);
+        const sign = (u % 1) < 0.5 ? 1 : -1;
+        return { leanX: 0, leanY: sign * STRETCH_AMP * mag };
+      }
+      const ang = u * 2 * Math.PI;
+      return { leanX: STRETCH_AMP * Math.cos(ang), leanY: STRETCH_AMP * Math.sin(ang) };
+    }
+
+    function bodyLeanWorld(pose, leanX, leanY) {
+      const ch = Math.cos(pose.heading), sh = Math.sin(pose.heading);
+      return {
+        bx: pose.x + leanX * ch - leanY * sh,
+        by: pose.y + leanX * sh + leanY * ch,
+      };
+    }
+
     function update(dt) {
       const v = readUI();
-      const tStance = DUTY / v.freq;
+      const sk = stretchKind();
+      const spinMode = !sk && (
+        (mode === 'spin' && Math.abs(v.turn) > 1e-6) ||
+        (mode === 'control' && isControlSpin(controlActive))
+      );
+      const duty = gaitDuty();
+      const tStance = duty / v.freq;
       const speed = v.stride / tStance;
       const vx = speed * Math.cos(v.crab);
       const vy = speed * Math.sin(v.crab);
 
       if (playing) {
-        phase = (phase + dt * v.freq) % 1;
+        if (sk) {
+          const hz = sk === 'rotate' ? STRETCH_ROT_HZ : STRETCH_HZ;
+          stretchPhase = (stretchPhase + dt * hz) % 1;
+        } else {
+          phase = (phase + dt * v.freq) % 1;
+        }
         const ch = Math.cos(pose.heading), sh = Math.sin(pose.heading);
         pose.x += (vx * ch - vy * sh) * dt;
         pose.y += (vx * sh + vy * ch) * dt;
         pose.heading += v.turn * dt;
       }
 
-      robot.position.copy(toThree(pose.x * 1000, pose.y * 1000, v.height * 1000));
+      const lean = sk ? stretchOffset(stretchPhase, sk) : { leanX: 0, leanY: 0 };
+      const body = bodyLeanWorld(pose, lean.leanX, lean.leanY);
+      robot.position.copy(toThree(body.bx * 1000, body.by * 1000, v.height * 1000));
       robot.rotation.y = pose.heading;
 
       let worst = { margin: Infinity, name: '', joint: '' };
@@ -501,23 +1126,27 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
         const sx = (vx - v.turn * ny) * tStance;
         const sy = (vy + v.turn * nx) * tStance;
 
-        const p = (phase + h.tripod * 0.5) % 1;
+        const p = legPhase(h);
         let fx, fy, fz;
-        if (p < DUTY) {
-          const u = p / DUTY;
-          fx = nx + sx * (0.5 - u);
-          fy = ny + sy * (0.5 - u);
+        if (sk) {
+          fx = nx - lean.leanX;
+          fy = ny - lean.leanY;
           fz = -v.height;
         } else {
-          const u = (p - DUTY) / (1 - DUTY);
-          fx = nx + sx * (u - 0.5);
-          fy = ny + sy * (u - 0.5);
-          fz = -v.height + v.lift * Math.sin(Math.PI * u);
+          const ft = footTarget(nx, ny, sx, sy, p, pose, spinMode, duty);
+          fx = ft.fx;
+          fy = ft.fy;
+          if (p < duty) {
+            fz = -v.height;
+          } else {
+            const u = (p - duty) / (1 - duty);
+            fz = -v.height + v.lift * Math.sin(Math.PI * u);
+          }
         }
 
         const j = legIK(fx - h.x, fy - h.y, fz, h.yaw0);
         if (!j.reachable) unreachable++;
-        const coxaShow = v.freezeHips ? 0 : j.coxa;
+        const coxaShow = (v.freezeHips && !sk) ? 0 : j.coxa;
         leg.coxaYaw.rotation.y = coxaShow;
         leg.femurPivot.rotation.z = j.femur;
         leg.kneePivot.rotation.z = -j.knee;
@@ -542,19 +1171,42 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       const gapMm = clearWorst.gap * 1000;
       const jCls = marginDeg < 0 ? 'bad' : marginDeg < 8 ? 'warn' : '';
       const cCls = gapMm < 0 ? 'bad' : gapMm < SHIN_CLEAR_MIN * 1000 ? 'warn' : '';
+      const yawDps = v.turn / DEG;
+      let motion;
+      if (sk === 'linear') {
+        motion = lean.leanY >= 0 ? 'stretch left' : 'stretch right';
+      } else if (sk === 'rotate') {
+        motion = `stretch rotate ${((stretchPhase * 360) % 360).toFixed(0)}°`;
+      } else if (mode === 'control') {
+        if (controlActive === 'spinCcw' || controlActive === 'spinCw') {
+          const yawDps = v.turn / DEG;
+          motion = `spin ${Math.abs(yawDps).toFixed(0)} °/s ${yawDps > 0 ? 'CCW' : 'CW'}`;
+        } else if (controlActive) motion = `${(speed * 1000).toFixed(0)} mm/s ${controlActive}`;
+        else motion = 'hold a direction to move';
+      } else if (mode === 'walk') {
+        motion = `${(speed * 1000).toFixed(0)} mm/s`;
+      } else if (mode === 'ripple') {
+        motion = `ripple ${(speed * 1000).toFixed(0)} mm/s`;
+      } else if (mode === 'wave') {
+        motion = `wave ${(speed * 1000).toFixed(0)} mm/s`;
+      } else if (Math.abs(yawDps) < 0.5) {
+        motion = 'stopped';
+      } else {
+        motion = `spin ${Math.abs(yawDps).toFixed(0)} °/s ${yawDps > 0 ? 'CCW' : 'CW'} · heading ${(pose.heading / DEG).toFixed(0)}°`;
+      }
       statusEl.innerHTML =
-        `Preview · ${(speed * 1000).toFixed(0)} mm/s · ${(1 / v.freq).toFixed(2)} s/cycle` +
+        `Preview · ${motion} · ${(1 / v.freq).toFixed(2)} s/cycle` +
         (v.freezeHips ? ' · hips frozen' : '') + `<br/>` +
         `Shin clearance: <span class="${cCls}">${gapMm.toFixed(1)} mm @ ${clearWorst.pair}</span><br/>` +
         `Tightest: <span class="${jCls}">${worst.name} ${worst.joint} ${marginDeg.toFixed(1)}°</span>` +
         (unreachable ? `<br/><span class="bad">${unreachable} foot out of reach</span>` : '');
+      if (liveStatusEl && mode !== 'control') {
+        liveStatusEl.textContent = motion;
+        liveStatusEl.classList.toggle('live', playing && (sk || isLocomotion() || mode === 'spin' || (mode === 'control' && controlActive)));
+      }
     }
 
-    addEventListener('resize', () => {
-      camera.aspect = innerWidth / innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
-    });
+    addEventListener('resize', resizeRenderer);
 
     loadFromRobot();
     setInterval(pollRobot, 1500);
@@ -566,12 +1218,14 @@ static const char WALK_HTML[] PROGMEM = R"HTML(
       last = now;
       const prev = robot.position.clone();
       update(dt);
-      camFollow.subVectors(robot.position, prev);
-      camFollow.y = 0;
-      camera.position.add(camFollow);
-      controls.target.add(camFollow);
-      controls.update();
-      renderer.render(scene, camera);
+      if (settingsOpen) {
+        camFollow.subVectors(robot.position, prev);
+        camFollow.y = 0;
+        camera.position.add(camFollow);
+        controls.target.add(camFollow);
+        controls.update();
+        renderer.render(scene, camera);
+      }
     })(last);
   </script>
 </body>

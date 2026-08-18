@@ -1,6 +1,6 @@
 # Firmware (`pca_servo_test`)
 
-PlatformIO project for the ESP32-S3: I²C PWM, web calibrator, tripod gait, and the same 3D stick preview as `hexapod_description/view_walk.html` / `view_spin.html`.
+PlatformIO project for the ESP32-S3: I²C PWM, web calibrator, tripod gait, and the same 3D stick preview as `hexapod_description/view_hexapod.html`.
 
 ## Build
 
@@ -21,12 +21,10 @@ After WiFi connects, serial prints `Open http://<ip>`.
 | `include/walk.h` | Gait parameters / API |
 | `include/calibration_backup.h` | Compiled PWM snapshot (generated) |
 | `include/gait_preview_html.h` | `/walk` page (generated from `www/walk.html`) |
-| `include/gait_spin_html.h` | `/spin` page (generated from `www/spin.html`) |
-| `www/walk.html` | Editable walk UI + Three.js preview |
-| `www/spin.html` | Editable spin UI + Three.js preview |
+| `www/walk.html` | Editable gait UI + Three.js preview (walk & spin tabs) |
 | `servo_map.json` | UI channel → PCA board/channel |
 | `JOINT_CONVENTION.md` | Model joint zeros, signs, PWM mapping |
-| `gen_walk_html.py` | Rebuild preview headers after editing `www/*.html` |
+| `gen_walk_html.py` | Rebuild `gait_preview_html.h` after editing `www/walk.html` |
 | `gen_cal_backup.py` | Rebuild `calibration_backup.h` from `../calibration/servo_cal.json` |
 
 ## HTTP API
@@ -46,13 +44,15 @@ Calibration (`/`):
 | `GET /api/cal/lock` | Lock thigh/shin span to shortest available |
 | `GET /api/cal/restore` | Overwrite NVS with the committed snapshot |
 
-Walk (`/walk`) and spin (`/spin`):
+Gait preview (`/walk` — walk & spin tabs):
 
 | Path | Action |
 |------|--------|
 | `GET /api/walk/get` | Current params JSON |
 | `GET /api/walk/params?...` | Set freq, stride (mm), lift, height, radius, splay, crab, turn, freezeHips |
 | `GET /api/walk/toggle` | Start / stop (stop parks at mid/default) |
+| `GET /api/walk/start` | Start walking (no-op if already walking) |
+| `GET /api/walk/stop` | Stop walking (servos hold last pose) |
 | `GET /api/walk/status` | Walking flag, phase, unreachable feet |
 
 On boot the serial log also prints `CAL_JSON_BEGIN` … `CAL_JSON_END`.
