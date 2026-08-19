@@ -1,5 +1,7 @@
 # Joint rotation standard (model ↔ servos)
 
+**Calibrating hardware?** Use the step-by-step guide: [docs/CALIBRATION.md](../docs/CALIBRATION.md).
+
 Robot frame: **+X forward, +Y left, +Z up**.  
 All six legs use the **same** kinematic signs (no left/right axis flip in the model). Servo mounting mirrors are handled only by each joint’s **direction** flag in calibration.
 
