@@ -1,4 +1,5 @@
 # Hexapod
+a cheap 3D printed hexapod robot using MG996r servos and an esp32.
 
 ![Hexapod from the front](hexapod_front.png)
 
