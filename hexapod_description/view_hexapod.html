@@ -18,9 +18,9 @@
     .app-top h1 { font-size: 15px; margin: 0; opacity: 0.9; white-space: nowrap; }
     #tabs { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; justify-content: center; }
     #tabs button {
-      flex: 1 1 18%; min-width: 48px; max-width: 72px;
+      flex: 1 1 12%; min-width: 40px; max-width: 72px;
       background: #2a2a30; color: #777; border: 2px solid #3a3a42;
-      border-radius: 6px; padding: 7px 0; font-size: 10px; font-weight: 500;
+      border-radius: 6px; padding: 7px 0; font-size: 9px; font-weight: 500;
       cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
     #tabs button.active[data-tab="walk"] {
@@ -42,6 +42,30 @@
     #tabs button.active[data-tab="stretch"] {
       background: #6b21a8; color: #fff; border-color: #c084fc; font-weight: 700;
       box-shadow: 0 0 10px rgba(192, 132, 252, 0.45);
+    }
+    #tabs button.active[data-tab="pitch"] {
+      background: #4338ca; color: #fff; border-color: #818cf8; font-weight: 700;
+      box-shadow: 0 0 10px rgba(129, 140, 248, 0.45);
+    }
+    #tabs button.active[data-tab="crouch"] {
+      background: #0e7490; color: #fff; border-color: #22d3ee; font-weight: 700;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.45);
+    }
+    #tabs button.active[data-tab="twist"] {
+      background: #a16207; color: #fff; border-color: #fbbf24; font-weight: 700;
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+    }
+    #tabs button.active[data-tab="roll"] {
+      background: #b91c1c; color: #fff; border-color: #f87171; font-weight: 700;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.45);
+    }
+    #tabs button.active[data-tab="nod"] {
+      background: #5b21b6; color: #fff; border-color: #a78bfa; font-weight: 700;
+      box-shadow: 0 0 10px rgba(167, 139, 250, 0.45);
+    }
+    #tabs button.active[data-tab="swirl"] {
+      background: #c2410c; color: #fff; border-color: #fb923c; font-weight: 700;
+      box-shadow: 0 0 10px rgba(251, 146, 60, 0.45);
     }
     #tabs button.active[data-tab="rotate"] {
       background: #9d174d; color: #fff; border-color: #f472b6; font-weight: 700;
@@ -157,6 +181,12 @@
         <button type="button" class="tab" data-tab="wave">Wave</button>
         <button type="button" class="tab" data-tab="spin">Spin</button>
         <button type="button" class="tab" data-tab="stretch">Stretch</button>
+        <button type="button" class="tab" data-tab="pitch">Pitch</button>
+        <button type="button" class="tab" data-tab="crouch">Crouch</button>
+        <button type="button" class="tab" data-tab="twist">Twist</button>
+        <button type="button" class="tab" data-tab="roll">Roll</button>
+        <button type="button" class="tab" data-tab="nod">Nod</button>
+        <button type="button" class="tab" data-tab="swirl">Swirl</button>
         <button type="button" class="tab" data-tab="rotate">Rotate</button>
         <button type="button" class="tab" data-tab="control">Control</button>
       </div>
@@ -184,6 +214,30 @@
       <div id="mode-stretch" class="mode-panel hidden">
         <p class="mode-title">Stretch</p>
         <p class="mode-desc">Feet planted · body leans left ↔ right</p>
+      </div>
+      <div id="mode-pitch" class="mode-panel hidden">
+        <p class="mode-title">Pitch</p>
+        <p class="mode-desc">Feet planted · body leans forward ↔ back</p>
+      </div>
+      <div id="mode-crouch" class="mode-panel hidden">
+        <p class="mode-title">Crouch</p>
+        <p class="mode-desc">Feet planted · body squats up ↔ down</p>
+      </div>
+      <div id="mode-twist" class="mode-panel hidden">
+        <p class="mode-title">Twist</p>
+        <p class="mode-desc">Feet planted · body yaws left ↔ right</p>
+      </div>
+      <div id="mode-roll" class="mode-panel hidden">
+        <p class="mode-title">Roll</p>
+        <p class="mode-desc">Feet planted · chassis tilts left ↔ right</p>
+      </div>
+      <div id="mode-nod" class="mode-panel hidden">
+        <p class="mode-title">Nod</p>
+        <p class="mode-desc">Feet planted · chassis tips nose ↔ tail</p>
+      </div>
+      <div id="mode-swirl" class="mode-panel hidden">
+        <p class="mode-title">Swirl</p>
+        <p class="mode-desc">Feet planted · chassis tilts and circles</p>
       </div>
       <div id="mode-rotate" class="mode-panel hidden">
         <p class="mode-title">Rotate</p>
@@ -235,10 +289,7 @@
         </label>
       </div>
       <div id="panel-stretch" class="panel hidden">
-        <p class="tab-hint">Uses body height &amp; foot radius below</p>
-      </div>
-      <div id="panel-rotate" class="panel hidden">
-        <p class="tab-hint">Uses body height &amp; foot radius below</p>
+        <p class="tab-hint" id="planted-hint">Uses body height &amp; foot radius below</p>
       </div>
       <div class="settings-section">Gait</div>
       <div id="gait-settings">
@@ -611,10 +662,15 @@
       return mode === 'ripple' || mode === 'wave';
     }
 
-    function stretchKind() {
-      if (mode === 'stretch') return 'linear';
-      if (mode === 'rotate') return 'rotate';
-      return false;
+    const STRETCH_TABS = {
+      stretch: 'linear', rotate: 'rotate', pitch: 'pitch', crouch: 'crouch', twist: 'twist',
+      roll: 'roll', nod: 'nod', swirl: 'swirl',
+    };
+    function stretchKind(m) {
+      return STRETCH_TABS[m ?? mode] || false;
+    }
+    function isStretchTab(m) {
+      return !!STRETCH_TABS[m ?? mode];
     }
 
     function setTabPanels() {
@@ -623,12 +679,27 @@
       document.getElementById('mode-wave').classList.toggle('hidden', mode !== 'wave');
       document.getElementById('mode-spin').classList.toggle('hidden', mode !== 'spin');
       document.getElementById('mode-stretch').classList.toggle('hidden', mode !== 'stretch');
+      document.getElementById('mode-pitch').classList.toggle('hidden', mode !== 'pitch');
+      document.getElementById('mode-crouch').classList.toggle('hidden', mode !== 'crouch');
+      document.getElementById('mode-twist').classList.toggle('hidden', mode !== 'twist');
+      document.getElementById('mode-roll').classList.toggle('hidden', mode !== 'roll');
+      document.getElementById('mode-nod').classList.toggle('hidden', mode !== 'nod');
+      document.getElementById('mode-swirl').classList.toggle('hidden', mode !== 'swirl');
       document.getElementById('mode-rotate').classList.toggle('hidden', mode !== 'rotate');
       document.getElementById('mode-control').classList.toggle('hidden', mode !== 'control');
       document.getElementById('panel-walk').classList.toggle('hidden', !isLocomotion());
       document.getElementById('panel-spin').classList.toggle('hidden', mode !== 'spin' && mode !== 'control');
-      document.getElementById('panel-stretch').classList.toggle('hidden', mode !== 'stretch');
-      document.getElementById('panel-rotate').classList.toggle('hidden', mode !== 'rotate');
+      document.getElementById('panel-stretch').classList.toggle('hidden', !isStretchTab());
+      const plantedHint = document.getElementById('planted-hint');
+      if (plantedHint) {
+        plantedHint.textContent = (mode === 'roll' || mode === 'nod' || mode === 'swirl')
+          ? 'Chassis tilts · lower body height if a foot goes unreachable'
+          : mode === 'twist'
+          ? 'Twist uses hips · uncheck Freeze hips for full range'
+          : mode === 'crouch'
+            ? 'Crouch uses body height below'
+            : 'Uses body height & foot radius below';
+      }
       const gaitHint = document.getElementById('walk-gait-hint');
       if (gaitHint) {
         gaitHint.textContent = mode === 'ripple'
@@ -676,7 +747,7 @@
         syncTabs();
         setTabPanels();
         if (mode === 'spin' && Math.abs(+ui.turn.value) < 0.5) ui.turn.value = 20;
-        if (mode === 'stretch' || mode === 'rotate') {
+        if (isStretchTab()) {
           playing = true;
           playBtn.textContent = 'Pause';
           playBtn.classList.remove('off');
@@ -691,11 +762,9 @@
               ? 'Wave · clockwise around body · stride & crab in settings'
               : mode === 'spin'
             ? 'In-place rotate · spin rate in settings'
-            : mode === 'stretch'
-              ? 'Height & radius in settings'
-              : mode === 'rotate'
-                ? 'Height & radius in settings'
-                : 'Walk settings apply · hold D-pad or spin buttons';
+            : isStretchTab()
+              ? 'Height & radius in settings · Start robot to run on hardware'
+              : 'Walk settings apply · hold D-pad or spin buttons';
       };
     });
     setTabPanels();
@@ -831,18 +900,67 @@
     }
 
     const STRETCH_AMP = 0.035; // m, body lean with feet planted
-    const STRETCH_HZ = 0.22;   // left-then-right cycle
-    const STRETCH_ROT_HZ = 0.18; // full rotation cycle
+    const STRETCH_BOB = 0.018;
+    const STRETCH_YAW = 10 * DEG;
+    const STRETCH_TILT = 14 * DEG;
+    const STRETCH_SWIRL_LEAN = 0.025;
+    const STRETCH_HZ = 0.22;
+    const STRETCH_ROT_HZ = 0.18;
+    const STRETCH_CROUCH_HZ = 0.28;
+    const STRETCH_TWIST_HZ = 0.20;
+    const STRETCH_SWIRL_HZ = 0.16;
+
+    function stretchPulse(u) {
+      const u1 = ((u % 1) + 1) % 1;
+      const half = u1 < 0.5 ? u1 * 2 : (u1 - 0.5) * 2;
+      return Math.sin(Math.PI * half);
+    }
 
     function stretchOffset(u, kind) {
+      const u1 = ((u % 1) + 1) % 1;
+      const out = { leanX: 0, leanY: 0, dHeight: 0, yaw: 0, roll: 0, pitch: 0 };
       if (kind === 'linear') {
-        const half = (u % 1) < 0.5 ? u * 2 : (u - 0.5) * 2;
-        const mag = Math.sin(Math.PI * half);
-        const sign = (u % 1) < 0.5 ? 1 : -1;
-        return { leanX: 0, leanY: sign * STRETCH_AMP * mag };
+        out.leanY = (u1 < 0.5 ? 1 : -1) * STRETCH_AMP * stretchPulse(u1);
+      } else if (kind === 'pitch') {
+        out.leanX = (u1 < 0.5 ? 1 : -1) * STRETCH_AMP * stretchPulse(u1);
+      } else if (kind === 'rotate') {
+        const ang = u1 * 2 * Math.PI;
+        out.leanX = STRETCH_AMP * Math.cos(ang);
+        out.leanY = STRETCH_AMP * Math.sin(ang);
+      } else if (kind === 'crouch') {
+        out.dHeight = STRETCH_BOB * Math.sin(2 * Math.PI * u1);
+      } else if (kind === 'twist') {
+        out.yaw = STRETCH_YAW * Math.sin(2 * Math.PI * u1);
+      } else if (kind === 'roll') {
+        out.roll = (u1 < 0.5 ? 1 : -1) * STRETCH_TILT * stretchPulse(u1);
+      } else if (kind === 'nod') {
+        out.pitch = (u1 < 0.5 ? 1 : -1) * STRETCH_TILT * stretchPulse(u1);
+      } else if (kind === 'swirl') {
+        const ang = u1 * 2 * Math.PI;
+        out.roll = STRETCH_TILT * Math.sin(ang);
+        out.pitch = STRETCH_TILT * Math.cos(ang);
+        out.leanX = STRETCH_SWIRL_LEAN * Math.cos(ang);
+        out.leanY = STRETCH_SWIRL_LEAN * Math.sin(ang);
       }
-      const ang = u * 2 * Math.PI;
-      return { leanX: STRETCH_AMP * Math.cos(ang), leanY: STRETCH_AMP * Math.sin(ang) };
+      return out;
+    }
+
+    function stretchHz(kind) {
+      if (kind === 'rotate') return STRETCH_ROT_HZ;
+      if (kind === 'crouch') return STRETCH_CROUCH_HZ;
+      if (kind === 'twist') return STRETCH_TWIST_HZ;
+      if (kind === 'swirl') return STRETCH_SWIRL_HZ;
+      return STRETCH_HZ;
+    }
+
+    function stretchFootBody(sh, nx, ny, height) {
+      let wx = nx - sh.leanX, wy = ny - sh.leanY, wz = -(height - sh.dHeight);
+      let c = Math.cos(-sh.yaw), s = Math.sin(-sh.yaw);
+      let x1 = c * wx - s * wy, y1 = s * wx + c * wy, z1 = wz;
+      c = Math.cos(-sh.pitch); s = Math.sin(-sh.pitch);
+      let x2 = c * x1 + s * z1, y2 = y1, z2 = -s * x1 + c * z1;
+      c = Math.cos(-sh.roll); s = Math.sin(-sh.roll);
+      return { fx: x2, fy: c * y2 - s * z2, fz: s * y2 + c * z2 };
     }
 
     function bodyLeanWorld(pose, leanX, leanY) {
@@ -869,7 +987,7 @@
 
       if (playing) {
         if (sk) {
-          const hz = sk === 'rotate' ? STRETCH_ROT_HZ : STRETCH_HZ;
+          const hz = stretchHz(sk);
           stretchPhase = (stretchPhase + dt * hz) % 1;
         } else {
           phase = (phase + dt * v.freq) % 1;
@@ -880,10 +998,12 @@
         pose.heading += v.turn * dt;
       }
 
-      const lean = sk ? stretchOffset(stretchPhase, sk) : { leanX: 0, leanY: 0 };
+      const lean = sk ? stretchOffset(stretchPhase, sk) : { leanX: 0, leanY: 0, dHeight: 0, yaw: 0, roll: 0, pitch: 0 };
       const body = bodyLeanWorld(pose, lean.leanX, lean.leanY);
-      robot.position.copy(toThree(body.bx * 1000, body.by * 1000, v.height * 1000));
-      robot.rotation.y = pose.heading;
+      robot.position.copy(toThree(body.bx * 1000, body.by * 1000, (v.height - lean.dHeight) * 1000));
+      robot.rotation.x = lean.roll;
+      robot.rotation.y = pose.heading + lean.yaw;
+      robot.rotation.z = -lean.pitch;
 
       let worst = { margin: Infinity, name: '', joint: '' };
       let unreachable = 0;
@@ -902,9 +1022,8 @@
         const p = legPhase(h);
         let fx, fy, fz;
         if (sk) {
-          fx = nx - lean.leanX;
-          fy = ny - lean.leanY;
-          fz = -v.height;
+          const fb = stretchFootBody(lean, nx, ny, v.height);
+          fx = fb.fx; fy = fb.fy; fz = fb.fz;
         } else {
           const ft = footTarget(nx, ny, sx, sy, p, pose, spinMode, duty);
           fx = ft.fx;
@@ -948,6 +1067,18 @@
       let motion;
       if (sk === 'linear') {
         motion = lean.leanY >= 0 ? 'Stretch <b>left</b>' : 'Stretch <b>right</b>';
+      } else if (sk === 'pitch') {
+        motion = lean.leanX >= 0 ? 'Pitch <b>forward</b>' : 'Pitch <b>back</b>';
+      } else if (sk === 'crouch') {
+        motion = lean.dHeight >= 0 ? 'Crouch <b>down</b>' : 'Crouch <b>up</b>';
+      } else if (sk === 'twist') {
+        motion = `Twist <b>${(lean.yaw / DEG).toFixed(0)}°</b>`;
+      } else if (sk === 'roll') {
+        motion = lean.roll >= 0 ? 'Roll <b>left-up</b>' : 'Roll <b>right-up</b>';
+      } else if (sk === 'nod') {
+        motion = lean.pitch >= 0 ? 'Nod <b>nose-down</b>' : 'Nod <b>tail-down</b>';
+      } else if (sk === 'swirl') {
+        motion = `Swirl <b>${((stretchPhase * 360) % 360).toFixed(0)}°</b>`;
       } else if (sk === 'rotate') {
         const deg = ((stretchPhase * 360) % 360).toFixed(0);
         motion = `Stretch <b>rotate</b> ${deg}°`;

@@ -856,6 +856,32 @@ static void applyWalkPose() {
   }
 }
 
+static const char *stretchModeName(uint8_t sm) {
+  switch (sm) {
+    case WALK_STRETCH_LINEAR: return "linear";
+    case WALK_STRETCH_ROTATE: return "rotate";
+    case WALK_STRETCH_PITCH: return "pitch";
+    case WALK_STRETCH_CROUCH: return "crouch";
+    case WALK_STRETCH_TWIST: return "twist";
+    case WALK_STRETCH_ROLL: return "roll";
+    case WALK_STRETCH_NOD: return "nod";
+    case WALK_STRETCH_SWIRL: return "swirl";
+    default: return "off";
+  }
+}
+
+static uint8_t stretchModeFromName(const String &mode) {
+  if (mode == "linear") return WALK_STRETCH_LINEAR;
+  if (mode == "rotate") return WALK_STRETCH_ROTATE;
+  if (mode == "pitch") return WALK_STRETCH_PITCH;
+  if (mode == "crouch") return WALK_STRETCH_CROUCH;
+  if (mode == "twist") return WALK_STRETCH_TWIST;
+  if (mode == "roll") return WALK_STRETCH_ROLL;
+  if (mode == "nod") return WALK_STRETCH_NOD;
+  if (mode == "swirl") return WALK_STRETCH_SWIRL;
+  return 255;
+}
+
 static void handleWalkPage() { server.send_P(200, "text/html", WALK_HTML); }
 
 static void handleWalkGet() {
@@ -879,7 +905,7 @@ static void handleWalkGet() {
   j += ",\"phase\":" + String(walkPhase(), 3);
   uint8_t sm = walkStretchMode();
   j += ",\"stretch_mode\":\"";
-  j += sm == WALK_STRETCH_LINEAR ? "linear" : (sm == WALK_STRETCH_ROTATE ? "rotate" : "off");
+  j += stretchModeName(sm);
   j += "\"";
   j += "}";
   server.send(200, "application/json", j);
@@ -957,24 +983,26 @@ static void handleWalkStretch() {
     server.send(200, "text/plain", "STRETCH OFF (holding pose)");
     return;
   }
-  if (mode == "linear" || mode == "rotate") {
-    walkSetStretchMode(mode == "linear" ? WALK_STRETCH_LINEAR : WALK_STRETCH_ROTATE);
+  uint8_t sm = stretchModeFromName(mode);
+  if (sm != 255) {
+    walkSetStretchMode(sm);
     walkReset();
     walkSetEnabled(true);
     walkUpdate(0);
     applyWalkPose();
-    server.send(200, "text/plain", mode == "linear" ? "STRETCH linear" : "STRETCH rotate");
+    server.send(200, "text/plain", String("STRETCH ") + stretchModeName(sm));
     return;
   }
-  server.send(400, "text/plain", "use mode=off|linear|rotate");
+  server.send(400, "text/plain", "use mode=off|linear|rotate|pitch|crouch|twist|roll|nod|swirl");
 }
 
 static void handleWalkStatus() {
   WalkParams p = walkGetParams();
   uint8_t sm = walkStretchMode();
   String msg = walkEnabled() ? "WALKING" : "STOPPED";
-  if (sm == WALK_STRETCH_LINEAR) msg = "STRETCH linear";
-  else if (sm == WALK_STRETCH_ROTATE) msg = "STRETCH rotate";
+  if (sm != WALK_STRETCH_OFF) {
+    msg = String("STRETCH ") + stretchModeName(sm);
+  }
   if (p.freezeHips) msg += " hips=frozen";
   if (p.gait == WALK_GAIT_RIPPLE) msg += " gait=ripple";
   else if (p.gait == WALK_GAIT_WAVE) msg += " gait=wave";

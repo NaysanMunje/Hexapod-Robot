@@ -114,7 +114,7 @@ The walk page loads Three.js from a CDN when you open **Settings** → 3D previe
 
 ### Layout
 
-- **Top tabs:** Walk · Ripple · Wave · Spin · Stretch · Rotate · Control
+- **Top tabs:** Walk · Ripple · Wave · Spin · Stretch · Pitch · Crouch · Twist · Roll · Nod · Swirl · Rotate · Control
 - **Settings** (overlay): sliders, 3D preview, **Deploy to robot**, **Freeze hips**
 - **Start robot / Stop robot** on the main screen (except Control tab, which uses hold-to-move)
 
@@ -147,8 +147,14 @@ Sliders do **not** live-update the robot until you deploy.
 | **Ripple** | One leg at a time, alternating sides rear→front |
 | **Wave** | One leg at a time clockwise around the body |
 | **Spin** | In-place yaw; set **turn rate** in Settings; stride should be 0 |
-| **Stretch** | Body leans with feet planted (**Start robot** required) |
-| **Rotate** | Body rotates with feet planted (**Start robot** required) |
+| **Stretch** | Feet planted · lean left ↔ right (**Start robot**) |
+| **Pitch** | Feet planted · lean forward ↔ back |
+| **Crouch** | Feet planted · squat up ↔ down |
+| **Twist** | Feet planted · yaw left ↔ right (uncheck Freeze hips) |
+| **Roll** | Feet planted · chassis tilts left ↔ right (~14°) |
+| **Nod** | Feet planted · chassis tips nose ↔ tail (~14°) |
+| **Swirl** | Feet planted · chassis tilts while circling (most motion) |
+| **Rotate** | Feet planted · lean in a circle (body stays level) |
 | **Control** | Hold D-pad to walk; hold **↺ CCW** / **↻ CW** to spin; release to stop |
 
 Switching away from a locomotion tab **stops** the robot if it was running.

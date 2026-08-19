@@ -19,8 +19,15 @@ static const float BEND2 = -20.1f * DEG_TO_RAD;
 static const float DUTY_TRIPOD = 0.5f;
 static const float DUTY_SEQUENTIAL = 5.f / 6.f;  // ripple / wave: one leg swinging
 static const float STRETCH_AMP = 0.035f;
+static const float STRETCH_BOB = 0.018f;   // crouch, meters
+static const float STRETCH_YAW = 10.f * DEG_TO_RAD;
+static const float STRETCH_TILT = 14.f * DEG_TO_RAD;  // roll / nod of the chassis
+static const float STRETCH_SWIRL_LEAN = 0.025f;
 static const float STRETCH_HZ = 0.22f;
 static const float STRETCH_ROT_HZ = 0.18f;
+static const float STRETCH_CROUCH_HZ = 0.28f;
+static const float STRETCH_TWIST_HZ = 0.20f;
+static const float STRETCH_SWIRL_HZ = 0.16f;
 
 static float shinLen = 0, shinPhi = 0;
 static bool shinInit = false;
@@ -105,7 +112,7 @@ void walkReset() {
 }
 
 void walkSetStretchMode(uint8_t mode) {
-  if (mode > WALK_STRETCH_ROTATE) mode = WALK_STRETCH_OFF;
+  if (mode > WALK_STRETCH_SWIRL) mode = WALK_STRETCH_OFF;
   stretchMode = mode;
   stretchPhase = 0;
 }
@@ -136,21 +143,80 @@ LegAngles walkLegAngles(uint8_t leg) {
   return lastAng[leg];
 }
 
-static void stretchOffset(float u, uint8_t mode, float *leanX, float *leanY) {
-  *leanX = 0;
-  *leanY = 0;
+struct StretchShift {
+  float leanX;
+  float leanY;
+  float dHeight;
+  float yaw;
+  float roll;
+  float pitch;
+};
+
+static float stretchHz(uint8_t mode) {
+  if (mode == WALK_STRETCH_ROTATE) return STRETCH_ROT_HZ;
+  if (mode == WALK_STRETCH_CROUCH) return STRETCH_CROUCH_HZ;
+  if (mode == WALK_STRETCH_TWIST) return STRETCH_TWIST_HZ;
+  if (mode == WALK_STRETCH_SWIRL) return STRETCH_SWIRL_HZ;
+  return STRETCH_HZ;
+}
+
+// Smooth half-cycle: 0→peak→0 over u in [0, 0.5] or [0.5, 1].
+static float stretchPulse(float u) {
+  float u1 = fmodf(u, 1.f);
+  if (u1 < 0) u1 += 1.f;
+  float half = u1 < 0.5f ? u1 * 2.f : (u1 - 0.5f) * 2.f;
+  return sinf(PI * half);
+}
+
+static StretchShift stretchShift(float u, uint8_t mode) {
+  StretchShift s = {0, 0, 0, 0, 0, 0};
+  float u1 = fmodf(u, 1.f);
+  if (u1 < 0) u1 += 1.f;
   if (mode == WALK_STRETCH_LINEAR) {
-    float u1 = fmodf(u, 1.f);
-    if (u1 < 0) u1 += 1.f;
-    float half = u1 < 0.5f ? u1 * 2.f : (u1 - 0.5f) * 2.f;
-    float mag = sinf(PI * half);
     float sign = u1 < 0.5f ? 1.f : -1.f;
-    *leanY = sign * STRETCH_AMP * mag;
+    s.leanY = sign * STRETCH_AMP * stretchPulse(u1);
+  } else if (mode == WALK_STRETCH_PITCH) {
+    float sign = u1 < 0.5f ? 1.f : -1.f;
+    s.leanX = sign * STRETCH_AMP * stretchPulse(u1);
   } else if (mode == WALK_STRETCH_ROTATE) {
-    float ang = u * 2.f * PI;
-    *leanX = STRETCH_AMP * cosf(ang);
-    *leanY = STRETCH_AMP * sinf(ang);
+    float ang = u1 * 2.f * PI;
+    s.leanX = STRETCH_AMP * cosf(ang);
+    s.leanY = STRETCH_AMP * sinf(ang);
+  } else if (mode == WALK_STRETCH_CROUCH) {
+    s.dHeight = STRETCH_BOB * sinf(2.f * PI * u1);
+  } else if (mode == WALK_STRETCH_TWIST) {
+    s.yaw = STRETCH_YAW * sinf(2.f * PI * u1);
+  } else if (mode == WALK_STRETCH_ROLL) {
+    float sign = u1 < 0.5f ? 1.f : -1.f;
+    s.roll = sign * STRETCH_TILT * stretchPulse(u1);
+  } else if (mode == WALK_STRETCH_NOD) {
+    float sign = u1 < 0.5f ? 1.f : -1.f;
+    s.pitch = sign * STRETCH_TILT * stretchPulse(u1);
+  } else if (mode == WALK_STRETCH_SWIRL) {
+    float ang = u1 * 2.f * PI;
+    s.roll = STRETCH_TILT * sinf(ang);
+    s.pitch = STRETCH_TILT * cosf(ang);
+    s.leanX = STRETCH_SWIRL_LEAN * cosf(ang);
+    s.leanY = STRETCH_SWIRL_LEAN * sinf(ang);
   }
+  return s;
+}
+
+// World foot (nx,ny,0), body origin (leanX, leanY, height-dH), R = Rz(yaw)Ry(pitch)Rx(roll).
+// Foot in body frame = R^T * (foot_world - origin).
+static void stretchFootBody(const StretchShift &sh, float nx, float ny, float height,
+                            float *fx, float *fy, float *fz) {
+  float wx = nx - sh.leanX;
+  float wy = ny - sh.leanY;
+  float wz = -(height - sh.dHeight);
+  float c = cosf(-sh.yaw), s = sinf(-sh.yaw);
+  float x1 = c * wx - s * wy, y1 = s * wx + c * wy, z1 = wz;
+  c = cosf(-sh.pitch); s = sinf(-sh.pitch);
+  float x2 = c * x1 + s * z1, y2 = y1, z2 = -s * x1 + c * z1;
+  c = cosf(-sh.roll); s = sinf(-sh.roll);
+  *fx = x2;
+  *fy = c * y2 - s * z2;
+  *fz = s * y2 + c * z2;
 }
 
 void walkUpdate(float dt) {
@@ -159,21 +225,18 @@ void walkUpdate(float dt) {
   if (dt < 0) dt = 0;
 
   if (stretchMode != WALK_STRETCH_OFF) {
-    float hz = stretchMode == WALK_STRETCH_ROTATE ? STRETCH_ROT_HZ : STRETCH_HZ;
-    stretchPhase = fmodf(stretchPhase + dt * hz, 1.f);
+    stretchPhase = fmodf(stretchPhase + dt * stretchHz(stretchMode), 1.f);
     if (stretchPhase < 0) stretchPhase += 1.f;
 
-    float leanX, leanY;
-    stretchOffset(stretchPhase, stretchMode, &leanX, &leanY);
+    StretchShift sh = stretchShift(stretchPhase, stretchMode);
 
     for (uint8_t i = 0; i < 6; i++) {
       const HipDef &h = HIPS[i];
       float yawStance = h.yaw0 + h.splaySign * params.splay;
       float nx = h.x + params.radius * cosf(yawStance);
       float ny = h.y + params.radius * sinf(yawStance);
-      float fx = nx - leanX;
-      float fy = ny - leanY;
-      float fz = -params.height;
+      float fx, fy, fz;
+      stretchFootBody(sh, nx, ny, params.height, &fx, &fy, &fz);
       lastAng[i] = legIK(fx - h.x, fy - h.y, fz, h.yaw0);
     }
     return;
